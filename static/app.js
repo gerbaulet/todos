@@ -152,14 +152,29 @@ async function renderHistory(){try{const q=$("#h-search").value.toLocaleLowerCas
 
 const DAY={week:48,month:18,quarter:8,year:3};
 function dayOffset(iso,start){return Math.round((new Date(iso+"T12:00:00")-start)/86400000)}
+function timelineMarkerWidth(task){
+  const canvas=timelineMarkerWidth.canvas||(timelineMarkerWidth.canvas=document.createElement("canvas")),context=canvas.getContext("2d");
+  context.font="14px system-ui";
+  return Math.min(220,Math.max(54,Math.ceil(context.measureText(`#${task.id} ${task.title||"(ohne Titel)"}`).width)+18));
+}
 function renderTimeline(){
   const tasks=state.tasks.filter(t=>!t.deleted_at),dated=tasks.filter(t=>t.due_date),assignees=[...new Set(tasks.map(t=>t.assignee||"Ohne Bearbeiter"))].sort((a,b)=>a.localeCompare(b,"de"));
   const px=DAY[state.settings.zoom]||18,start=new Date();start.setHours(12,0,0,0);start.setDate(start.getDate()-45);const days=500,width=140+days*px;
   let months="";const cursor=new Date(start);cursor.setDate(1);if(cursor<start)cursor.setMonth(cursor.getMonth()+1);while(dayOffset(isoLocal(cursor),start)<days){const left=140+dayOffset(isoLocal(cursor),start)*px,next=new Date(cursor);next.setMonth(next.getMonth()+1);months+=`<div class="tl-month" style="left:${left}px;width:${Math.max(1,(next-cursor)/86400000)*px}px">${cursor.toLocaleDateString("de-DE",{month:"long",year:"numeric"})}</div>`;cursor.setMonth(cursor.getMonth()+1)}
-  let markerPositions={};const rows=assignees.map((name,ri)=>{const same=dated.filter(t=>(t.assignee||"Ohne Bearbeiter")===name);const stacks={};return `<div class="tl-row"><div class="tl-label">${esc(name)}</div>${same.map(t=>{const n=stacks[t.due_date]=(stacks[t.due_date]||0)+1,left=140+dayOffset(t.due_date,start)*px,top=4+(n-1)*21;markerPositions[t.id]={x:left+4,y:32+ri*62+top+12};return `<button class="tl-marker ${t.completed?"done":""} ${!t.completed&&t.due_date<localDate()?"overdue":""}" draggable="true" data-id="${t.id}" style="left:${left}px;top:${top}px;--color:${assigneeColor(t.assignee)}" title="#${t.id} – ${esc(t.title)} – ${dateLabel(t.due_date)}">#${t.id} ${esc(t.title||"(ohne Titel)")}</button>`}).join("")}</div>`}).join("");
-  const todayX=140+dayOffset(localDate(),start)*px;let svg="";if(state.settings.showDependencies){for(const t of dated)for(const d of t.dependencies){const a=markerPositions[t.id],b=markerPositions[d];if(a&&b)svg+=`<line x1="${b.x}" y1="${b.y}" x2="${a.x}" y2="${a.y}" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>`}}
+  let markerPositions={},rows="",rowOffset=0;
+  for(const name of assignees){
+    const same=dated.filter(t=>(t.assignee||"Ohne Bearbeiter")===name).map(t=>({task:t,left:140+dayOffset(t.due_date,start)*px,width:timelineMarkerWidth(t)})).sort((a,b)=>a.left-b.left||a.task.id-b.task.id),laneEnds=[];
+    let markers="";
+    for(const item of same){
+      let lane=laneEnds.findIndex(end=>end+8<=item.left);if(lane<0)lane=laneEnds.length;laneEnds[lane]=item.left+item.width;
+      const t=item.task,top=6+lane*32;markerPositions[t.id]={left:item.left,right:item.left+item.width,center:item.left+item.width/2,y:rowOffset+top+14};
+      markers+=`<button class="tl-marker ${t.completed?"done":""} ${!t.completed&&t.due_date<localDate()?"overdue":""}" draggable="true" data-id="${t.id}" style="left:${item.left}px;top:${top}px;width:${item.width}px;--color:${assigneeColor(t.assignee)}" title="#${t.id} – ${esc(t.title)} – ${dateLabel(t.due_date)}">#${t.id} ${esc(t.title||"(ohne Titel)")}</button>`;
+    }
+    const rowHeight=Math.max(62,12+laneEnds.length*32);rows+=`<div class="tl-row" style="height:${rowHeight}px"><div class="tl-label">${esc(name)}</div>${markers}</div>`;rowOffset+=rowHeight;
+  }
+  const todayX=140+dayOffset(localDate(),start)*px;let svg="";if(state.settings.showDependencies){for(const t of dated)for(const d of t.dependencies){const target=markerPositions[t.id],source=markerPositions[d];if(source&&target){const points=source.center<=target.center?{x1:source.right,x2:target.left}:{x1:source.left,x2:target.right};svg+=`<line x1="${points.x1}" y1="${source.y}" x2="${points.x2}" y2="${target.y}" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>`}}}
   const undated=tasks.filter(t=>!t.due_date).map(t=>`<button data-id="${t.id}" class="undated-task">#${t.id} ${esc(t.title||"(ohne Titel)")}</button>`).join("");
-  $("#timeline").innerHTML=`<div class="tl-canvas" style="width:${width}px"><div class="tl-months">${months}</div><div class="today-line" style="left:${todayX}px"></div>${rows}<svg class="dep-lines" width="${width}" height="${assignees.length*62}"><defs><marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#64748b"/></marker></defs>${svg}</svg><div class="undated"><strong>Ohne Termin</strong>${undated||"Keine Aufgaben"}</div></div>`;
+  $("#timeline").innerHTML=`<div class="tl-canvas zoom-${state.settings.zoom}" style="width:${width}px"><div class="tl-months">${months}</div><div class="today-line" style="left:${todayX}px"></div>${rows}<svg class="dep-lines" width="${width}" height="${rowOffset}"><defs><marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#64748b"/></marker></defs>${svg}</svg><div class="undated"><strong>Ohne Termin</strong>${undated||"Keine Aufgaben"}</div></div>`;
   const scroller=$("#timeline");scroller.scrollLeft=state.settings.timelineScroll||Math.max(0,todayX-scroller.clientWidth/3);
   $$(".tl-marker").forEach(el=>{el.addEventListener("dragstart",e=>e.dataTransfer.setData("text/plain",el.dataset.id));el.addEventListener("click",()=>openEditor(+el.dataset.id));el.addEventListener("keydown",timelineKey)});$$(".undated-task").forEach(el=>el.onclick=()=>openEditor(+el.dataset.id));
   scroller.ondragover=e=>e.preventDefault();scroller.ondrop=e=>{e.preventDefault();const id=+e.dataTransfer.getData("text/plain"),rect=scroller.getBoundingClientRect(),x=e.clientX-rect.left+scroller.scrollLeft-140,index=Math.round(x/px),d=new Date(start);d.setDate(d.getDate()+index);updateTask(id,{due_date:isoLocal(d)})};
