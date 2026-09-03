@@ -6,6 +6,7 @@ const columns=[
   ["category","Kategorie",true],["tags","Tags",true],["link","Link",true]
 ];
 const optional=["project","category","tags","link"];
+const filterControls={search:["search","tl-search"],status:["status","tl-status"],assignee:["f-assignee","tl-assignee"],project:["f-project","tl-project"],category:["f-category","tl-category"],tag:["f-tag","tl-tag"],due:["f-due"]};
 const defaults={view:"table",sort:{field:"due_date",dir:1},visibleColumns:[],filters:{status:"active"},zoom:"month",showDependencies:false,timelineScroll:0};
 const state={tasks:[],lookups:{assignees:[],projects:[],categories:[],tags:[]},settings:{...defaults},selected:null,editing:null,saveTimer:null};
 
@@ -47,19 +48,19 @@ function buildControls(){
 function fillLookups(){
   for(const [key,id] of [["assignees","assignees"],["projects","projects"],["categories","categories"],["tags","tags"]])
     $("#"+id).innerHTML=state.lookups[key].map(x=>`<option value="${esc(x.name)}"></option>`).join("");
-  for(const [key,id] of [["assignees","f-assignee"],["projects","f-project"],["categories","f-category"],["tags","f-tag"]]){
+  for(const [key,id] of [["assignees","f-assignee"],["assignees","tl-assignee"],["projects","f-project"],["projects","tl-project"],["categories","f-category"],["categories","tl-category"],["tags","f-tag"],["tags","tl-tag"]]){
     const old=$("#"+id).value;$("#"+id).innerHTML='<option value="">Alle</option>'+state.lookups[key].map(x=>`<option>${esc(x.name)}</option>`).join("");$("#"+id).value=old;
   }
   $("#task-options").innerHTML=state.tasks.filter(t=>!t.deleted_at).map(t=>`<option value="#${t.id}">${esc(t.title)}</option>`).join("");
 }
 function applySettings(){
   const s=state.settings,f=s.filters||{};
-  $("#search").value=f.search||"";$("#status").value=f.status||"active";$("#f-assignee").value=f.assignee||"";$("#f-project").value=f.project||"";$("#f-category").value=f.category||"";$("#f-tag").value=f.tag||"";$("#f-due").value=f.due||"";
+  for(const [key,ids] of Object.entries(filterControls))for(const id of ids)$("#"+id).value=f[key]||(key==="status"?"active":"");
   $$("#columns input").forEach(x=>x.checked=(s.visibleColumns||[]).includes(x.value));$("#zoom").value=s.zoom;$("#show-deps").checked=!!s.showDependencies;
 }
 function esc(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function activeColumns(){return columns.filter(c=>!optional.includes(c[0])||(state.settings.visibleColumns||[]).includes(c[0]))}
-function filteredTasks(){
+function filteredTasks(includeDue=true){
   const f=state.settings.filters||{},now=Date.now(),today=localDate(),week=isoLocal(new Date(Date.now()+7*86400000));
   let data=state.tasks.filter(t=>{
     if(state.settings.view==="trash")return !!t.deleted_at;
@@ -68,7 +69,7 @@ function filteredTasks(){
     if(f.status==="open"&&t.completed)return false;if(f.status==="completed"&&!t.completed)return false;
     if(f.status==="active"&&t.completed&&now-parseUTC(t.completed_at)>30*60000)return false;
     if(f.assignee&&t.assignee!==f.assignee||f.project&&t.project!==f.project||f.category&&t.category!==f.category||f.tag&&!t.tags.includes(f.tag))return false;
-    if(f.due==="overdue"&&(!t.due_date||t.due_date>=today||t.completed))return false;if(f.due==="today"&&t.due_date!==today)return false;if(f.due==="week"&&(!t.due_date||t.due_date<today||t.due_date>week))return false;if(f.due==="none"&&t.due_date)return false;
+    if(includeDue){if(f.due==="overdue"&&(!t.due_date||t.due_date>=today||t.completed))return false;if(f.due==="today"&&t.due_date!==today)return false;if(f.due==="week"&&(!t.due_date||t.due_date<today||t.due_date>week))return false;if(f.due==="none"&&t.due_date)return false}
     const q=(f.search||"").toLocaleLowerCase("de");return !q||[t.title,t.assignee,t.project,t.category,t.link,...t.tags].join(" ").toLocaleLowerCase("de").includes(q);
   });
   if(state.settings.view==="completed")return data.sort((a,b)=>(b.completed_at||"").localeCompare(a.completed_at||""));
@@ -158,7 +159,7 @@ function timelineMarkerWidth(task){
   return Math.min(220,Math.max(54,Math.ceil(context.measureText(`#${task.id} ${task.title||"(ohne Titel)"}`).width)+18));
 }
 function renderTimeline(){
-  const tasks=state.tasks.filter(t=>!t.deleted_at),dated=tasks.filter(t=>t.due_date),assignees=[...new Set(tasks.map(t=>t.assignee||"Ohne Bearbeiter"))].sort((a,b)=>a.localeCompare(b,"de"));
+  const tasks=filteredTasks(false),dated=tasks.filter(t=>t.due_date),assignees=[...new Set(tasks.map(t=>t.assignee||"Ohne Bearbeiter"))].sort((a,b)=>a.localeCompare(b,"de"));
   const px=DAY[state.settings.zoom]||18,start=new Date();start.setHours(12,0,0,0);start.setDate(start.getDate()-45);const days=500,width=140+days*px;
   let months="";const cursor=new Date(start);cursor.setDate(1);if(cursor<start)cursor.setMonth(cursor.getMonth()+1);while(dayOffset(isoLocal(cursor),start)<days){const left=140+dayOffset(isoLocal(cursor),start)*px,next=new Date(cursor);next.setMonth(next.getMonth()+1);months+=`<div class="tl-month" style="left:${left}px;width:${Math.max(1,(next-cursor)/86400000)*px}px">${cursor.toLocaleDateString("de-DE",{month:"long",year:"numeric"})}</div>`;cursor.setMonth(cursor.getMonth()+1)}
   let markerPositions={},rows="",rowOffset=0;
@@ -186,7 +187,7 @@ function bind(){
   $("#tasks").addEventListener("click",e=>{const restore=e.target.closest("[data-restore]");if(restore)return restoreTask(+restore.dataset.restore);const cell=e.target.closest("td");if(cell?.dataset.field){selectCell(cell);if(e.detail===2){if(cell.dataset.field==="id")openEditor(+cell.closest("tr").dataset.id);else editCell(cell)}}});$("#tasks").addEventListener("keydown",onTableKey);
   $("#tasks thead").onclick=e=>{const f=e.target.closest("th")?.dataset.field;if(!f)return;const old=state.settings.sort||defaults.sort;saveSettings({sort:{field:f,dir:old.field===f?-old.dir:1}});renderTable()};
   $$("nav button").forEach(b=>b.onclick=()=>{saveSettings({view:b.dataset.view});render()});
-  for(const id of ["search","status","f-assignee","f-project","f-category","f-tag","f-due"]){const el=$("#"+id),key=id==="f-assignee"?"assignee":id==="f-project"?"project":id==="f-category"?"category":id==="f-tag"?"tag":id==="f-due"?"due":id;el.addEventListener(id==="search"?"input":"change",()=>{const filters={...state.settings.filters,[key]:el.value};saveSettings({filters});renderTable()})}
+  for(const [key,ids] of Object.entries(filterControls))for(const id of ids){const el=$("#"+id);el.addEventListener(key==="search"?"input":"change",()=>{const filters={...state.settings.filters,[key]:el.value};saveSettings({filters});for(const peer of ids)if(peer!==id)$("#"+peer).value=el.value;if(state.settings.view==="timeline")renderTimeline();else renderTable()})}
   $("#columns").onchange=()=>{const visibleColumns=$$("#columns input:checked").map(x=>x.value);saveSettings({visibleColumns});renderTable()};
   $("#zoom").onchange=e=>{saveSettings({zoom:e.target.value});renderTimeline()};$("#show-deps").onchange=e=>{saveSettings({showDependencies:e.target.checked});renderTimeline()};
   $("#today").onclick=()=>{const px=DAY[state.settings.zoom],x=140+45*px;$("#timeline").scrollLeft=Math.max(0,x-$("#timeline").clientWidth/3)};$("#timeline").onscroll=()=>{clearTimeout($("#timeline")._timer);$("#timeline")._timer=setTimeout(()=>saveSettings({timelineScroll:$("#timeline").scrollLeft}),500)};
