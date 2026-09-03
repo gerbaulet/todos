@@ -29,7 +29,7 @@ python app.py
 
 ## Bedienung
 
-In der Tabelle navigieren Pfeiltasten und Tab zwischen Zellen. Enter oder F2 startet die Bearbeitung; Enter speichert und springt in derselben Spalte nach unten. Esc verwirft die laufende Zellbearbeitung. `Ctrl+N`/`Ctrl+Enter` erzeugt einen Task, `Ctrl+Leertaste` schaltet den aktuellen Task um und `Ctrl+Delete` verschiebt ihn in den Papierkorb. `?` zeigt alle wichtigen Kürzel.
+In der Tabelle navigieren Pfeiltasten und Tab zwischen Zellen. Enter oder F2 startet die Bearbeitung; Enter speichert und springt in derselben Spalte nach unten. Esc verwirft die laufende Zellbearbeitung. `Alt+N` oder `Ctrl+Enter` erzeugt einen Task und `Ctrl+Leertaste` schaltet den aktuellen Task um. `Ctrl+Delete` beziehungsweise auf dem Mac `Ctrl+Backspace` oder `Cmd+Backspace` verschiebt ihn in den Papierkorb. `?` zeigt alle wichtigen Kürzel.
 
 Datumsfelder verstehen unter anderem `03.10.2026`, `03.10.26`, `15.10.`, `heute`, `morgen`, `+3`, `+15` und `+1w`.
 
