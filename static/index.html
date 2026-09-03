@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Aufgaben</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1>Aufgaben</h1>
+    <nav aria-label="Ansichten">
+      <button data-view="table">Tabelle</button><button data-view="timeline">Timeline</button>
+      <button data-view="completed">Fertiggestellt</button><button data-view="trash">Papierkorb</button>
+      <button data-view="history">Historie</button>
+    </nav>
+    <span class="grow"></span>
+    <button id="add">+ Neu <kbd>Ctrl N</kbd></button>
+    <button id="backup">Backup erstellen</button>
+    <button id="help" aria-label="Tastaturhilfe">?</button>
+  </header>
+
+  <section id="tools" aria-label="Filter">
+    <label class="search">Suche <input id="search" type="search" autocomplete="off" placeholder="Titel, Person, Tag …"></label>
+    <label>Status <select id="status"><option value="active">Aktuell</option><option value="open">Offen</option><option value="all">Alle</option><option value="completed">Erledigt</option></select></label>
+    <label>Wer <select id="f-assignee"><option value="">Alle</option></select></label>
+    <label>Projekt <select id="f-project"><option value="">Alle</option></select></label>
+    <label>Kategorie <select id="f-category"><option value="">Alle</option></select></label>
+    <label>Tag <select id="f-tag"><option value="">Alle</option></select></label>
+    <label>Fällig <select id="f-due"><option value="">Immer</option><option value="overdue">Überfällig</option><option value="today">Heute</option><option value="week">7 Tage</option><option value="none">Ohne Termin</option></select></label>
+    <details><summary>Spalten</summary><div id="columns"></div></details>
+  </section>
+
+  <main>
+    <section id="table-view" class="view"><div class="table-wrap"><table id="tasks"><thead><tr></tr></thead><tbody></tbody></table></div></section>
+    <section id="timeline-view" class="view hidden">
+      <div class="timeline-tools"><button id="today">Heute</button><label>Zoom <select id="zoom"><option value="week">Woche</option><option value="month">Monat</option><option value="quarter">Quartal</option><option value="year">Jahr</option></select></label><label><input id="show-deps" type="checkbox"> Abhängigkeiten anzeigen</label></div>
+      <div id="timeline" tabindex="0"></div>
+    </section>
+    <section id="history-view" class="view hidden"><h2>Globale Historie</h2><div class="history-filters"><label>Freitext<input id="h-search"></label><label>Von<input id="h-from" type="date"></label><label>Bis<input id="h-to" type="date"></label><label>Änderungsart<select id="h-action"><option value="">Alle</option><option value="created">Erstellt</option><option value="updated">Geändert</option><option value="completed">Erledigt</option><option value="reopened">Wieder geöffnet</option><option value="deleted">Gelöscht</option><option value="restored">Wiederhergestellt</option></select></label></div><div id="history-list"></div></section>
+  </main>
+
+  <dialog id="editor">
+    <form method="dialog" id="edit-form">
+      <h2>Task <span id="edit-id"></span></h2>
+      <div class="form-grid">
+        <label>Was ist zu tun<input name="title"></label><label>Wer<input name="assignee" list="assignees"></label>
+        <label>Bis wann<input name="due_date" placeholder="morgen, +3, 15.10."></label><label>Projekt<input name="project" list="projects"></label>
+        <label>Kategorie<input name="category" list="categories"></label><label>Tags<input name="tags" list="tags" placeholder="Kommagetrennt"></label>
+        <label>Abhängigkeiten<input name="dependencies" list="task-options" placeholder="#4, #7"></label><label>Link<input name="link" type="url"></label>
+        <label>Bearbeiterfarbe<input name="assignee_color" type="color"></label><label class="check"><input name="completed" type="checkbox"> Erledigt</label>
+      </div>
+      <details><summary>Änderungshistorie</summary><div id="task-history"></div></details>
+      <footer><button value="cancel">Abbrechen</button><button id="save-edit" value="default">Speichern</button></footer>
+    </form>
+  </dialog>
+  <dialog id="shortcuts"><h2>Tastaturkürzel</h2><dl>
+    <dt>Pfeile / Tab</dt><dd>Zellen auswählen</dd><dt>Enter / F2</dt><dd>Bearbeiten; Enter speichert und geht nach unten</dd>
+    <dt>Esc</dt><dd>Änderung verwerfen / Dialog schließen</dd><dt>Leertaste</dt><dd>Erledigt-Zelle umschalten</dd>
+    <dt>Ctrl+Leertaste</dt><dd>Aktuellen Task umschalten</dd><dt>Delete</dt><dd>Zelle leeren</dd>
+    <dt>Ctrl+Delete</dt><dd>Task in Papierkorb</dd><dt>Ctrl+N / Ctrl+Enter</dt><dd>Neuer Task</dd><dt>Ctrl+F</dt><dd>Suche</dd>
+  </dl><button id="close-help">Schließen</button></dialog>
+  <datalist id="assignees"></datalist><datalist id="projects"></datalist><datalist id="categories"></datalist><datalist id="tags"></datalist><datalist id="task-options"></datalist>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js"></script>
+</body>
+</html>
