@@ -6,7 +6,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
-from database import Database
+from database import DEFAULT_DATABASE, Database
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -133,7 +133,7 @@ def sqlite_error():
     return sqlite3.Error
 
 
-def make_server(database="todo.sqlite", host="127.0.0.1", port=8765):
+def make_server(database=DEFAULT_DATABASE, host="127.0.0.1", port=8765):
     global DB
     DB = Database(database)
     return ThreadingHTTPServer((host, port), Handler)
@@ -141,10 +141,11 @@ def make_server(database="todo.sqlite", host="127.0.0.1", port=8765):
 
 def main():
     parser = argparse.ArgumentParser(description="Lokale To-do-Anwendung")
-    parser.add_argument("--database", default=os.path.join(ROOT, "todo.sqlite"))
+    parser.add_argument("--database", default=DEFAULT_DATABASE)
+    parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
-    server = make_server(args.database, port=args.port)
+    server = make_server(args.database, host=args.host, port=args.port)
     print(f"To-do-App läuft unter http://127.0.0.1:{args.port} (Strg+C beendet)")
     try: server.serve_forever()
     except KeyboardInterrupt: pass

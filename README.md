@@ -1,16 +1,31 @@
 # Lokale To-do-App
 
-Eine vollständig offline laufende, keyboard-first To-do-Anwendung für einen Benutzer. Sie verwendet ausschließlich Python 3, SQLite und Vanilla HTML/CSS/JavaScript; es gibt keinen Installations- oder Build-Schritt.
+Eine lokale, keyboard-first To-do-Anwendung für einen Benutzer. Sie verwendet ausschließlich Python 3, SQLite und Vanilla HTML/CSS/JavaScript. Mit Docker ist keine lokale Python-Installation nötig.
 
-## Start
+## Start mit Docker
 
 Im Projektordner:
 
 ```console
-python app.py
+docker compose up
 ```
 
-Unter Windows funktioniert je nach Python-Installation alternativ `py app.py`. Danach im Browser [http://127.0.0.1:8765](http://127.0.0.1:8765) öffnen. Der Server bindet ausschließlich an `127.0.0.1`.
+Beim ersten Start wird das offizielle Python-Basisimage geladen und das kleine lokale Image gebaut. Danach im Browser [http://127.0.0.1:8765](http://127.0.0.1:8765) öffnen. Der veröffentlichte Port ist ausschließlich an `127.0.0.1` gebunden.
+
+Beenden mit `Ctrl+C`. Im Hintergrund starten und später beenden:
+
+```console
+docker compose up -d
+docker compose down
+```
+
+## Start ohne Docker
+
+Falls Python 3 vorhanden ist:
+
+```console
+python app.py
+```
 
 ## Bedienung
 
@@ -26,13 +41,13 @@ python -m unittest discover -s tests -v
 
 ## Daten und Backup
 
-Alle Fachdaten, Einstellungen und die vollständige Historie liegen in `todo.sqlite` direkt im Projektordner. Die Datei wird beim ersten Start automatisch angelegt.
+Alle Fachdaten, Einstellungen und die vollständige Historie liegen immer in `data/todo.sqlite` – unabhängig davon, ob die Anwendung mit Docker oder direkt mit Python gestartet wird. Der Ordner und die Datei werden bei Bedarf automatisch angelegt.
 
 „Backup erstellen“ lädt eine konsistente, über die SQLite-Backup-API erzeugte Kopie herunter. Zum Wiederherstellen:
 
 1. Anwendung beenden.
-2. Die aktuelle `todo.sqlite` sichern oder umbenennen.
-3. Das gewünschte Backup in den Projektordner kopieren und in `todo.sqlite` umbenennen.
+2. Die aktuelle `data/todo.sqlite` sichern oder umbenennen.
+3. Das gewünschte Backup nach `data/todo.sqlite` kopieren.
 4. Anwendung erneut starten.
 
 Es werden keine externen Requests, Cloud-Dienste, Telemetrie oder Zusatzdateien für den normalen Datenbankbetrieb benötigt.

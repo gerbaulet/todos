@@ -57,6 +57,7 @@ CREATE INDEX IF NOT EXISTS tasks_due ON tasks(due_date);
 
 COLORS = ["#2563eb", "#dc2626", "#059669", "#7c3aed", "#d97706", "#0891b2", "#be185d", "#4d7c0f"]
 FIELDS = {"title", "assignee", "due_date", "completed", "project", "category", "link", "tags", "dependencies"}
+DEFAULT_DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "todo.sqlite")
 
 
 def now():
@@ -64,8 +65,9 @@ def now():
 
 
 class Database:
-    def __init__(self, path="todo.sqlite"):
+    def __init__(self, path=DEFAULT_DATABASE):
         self.path = path
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         with self.read() as db:
             db.executescript(SCHEMA)
 
