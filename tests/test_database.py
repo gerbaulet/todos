@@ -90,6 +90,23 @@ class DatabaseTests(unittest.TestCase):
         two = self.db.create_task()
         self.assertGreater(two["id"], one["id"])
 
+    def test_unused_lookups_are_removed_but_deleted_task_references_count(self):
+        first = self.db.create_task({"assignee": "Falsch", "project": "Alt", "category": "Alt", "tags": ["Tippfeler"]})
+        second = self.db.create_task({"assignee": "Falsch", "project": "Falsch", "category": "Alt", "tags": ["Tippfeler"]})
+        self.db.delete_task(second["id"])
+        self.db.update_task(first["id"], {"assignee": "Richtig", "project": "Richtig", "category": "Neu", "tags": ["Korrekt"]})
+        lookups = self.db.lookups()
+        self.assertEqual([x["name"] for x in lookups["assignees"]], ["Falsch", "Richtig"])
+        self.assertEqual([x["name"] for x in lookups["projects"]], ["Falsch", "Richtig"])
+        self.assertEqual([x["name"] for x in lookups["categories"]], ["Alt", "Neu"])
+        self.assertEqual([x["name"] for x in lookups["tags"]], ["Korrekt", "Tippfeler"])
+        self.db.update_task(second["id"], {"assignee": "Richtig", "project": "Richtig", "category": "Neu", "tags": ["Korrekt"]})
+        lookups = self.db.lookups()
+        self.assertEqual([x["name"] for x in lookups["assignees"]], ["Richtig"])
+        self.assertEqual([x["name"] for x in lookups["projects"]], ["Richtig"])
+        self.assertEqual([x["name"] for x in lookups["categories"]], ["Neu"])
+        self.assertEqual([x["name"] for x in lookups["tags"]], ["Korrekt"])
+
 
 if __name__ == "__main__":
     unittest.main()

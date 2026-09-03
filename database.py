@@ -70,6 +70,7 @@ class Database:
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         with self.read() as db:
             db.executescript(SCHEMA)
+            self._cleanup_lookups(db)
 
     def connect(self):
         db = sqlite3.connect(self.path, timeout=10)
@@ -126,6 +127,13 @@ class Database:
             "INSERT INTO history(task_id,timestamp,action,field,old_value,new_value) VALUES (?,?,?,?,?,?)",
             (task_id, now(), action, field, text(old), text(new)),
         )
+
+    @staticmethod
+    def _cleanup_lookups(db):
+        db.execute("DELETE FROM assignees WHERE NOT EXISTS (SELECT 1 FROM tasks WHERE tasks.assignee_id=assignees.id)")
+        db.execute("DELETE FROM projects WHERE NOT EXISTS (SELECT 1 FROM tasks WHERE tasks.project_id=projects.id)")
+        db.execute("DELETE FROM categories WHERE NOT EXISTS (SELECT 1 FROM tasks WHERE tasks.category_id=categories.id)")
+        db.execute("DELETE FROM tags WHERE NOT EXISTS (SELECT 1 FROM task_tags WHERE task_tags.tag_id=tags.id)")
 
     @staticmethod
     def _validate_date(value):
@@ -255,6 +263,7 @@ class Database:
                     action = "updated"
                     if field == "completed": action = "completed" if current[field] else "reopened"
                     self._history(db, task_id, action, field, old[field], current[field])
+            self._cleanup_lookups(db)
             if changes and not any(old[f] != current[f] for f in changes):
                 return current
         return self.get_task(task_id)
