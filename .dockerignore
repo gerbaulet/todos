@@ -1,7 +1,7 @@
 .git
 .gitignore
-/todo
-/coverage.out
+__pycache__
+*.pyc
 *.sqlite
 data
 tests

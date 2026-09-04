@@ -1,13 +1,14 @@
 services:
   todo:
     build: .
+    init: true
     ports:
       - "127.0.0.1:8765:8765"
     volumes:
       - ./data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "/todo", "healthcheck"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/healthz', timeout=2)"]
       interval: 60s
       timeout: 3s
       retries: 3
