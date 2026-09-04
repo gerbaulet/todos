@@ -15,7 +15,7 @@
       <button data-view="history">Historie</button>
     </nav>
     <span class="grow"></span>
-    <button id="add">+ Neu <kbd>Alt N</kbd></button>
+    <button id="add">+ Neu <kbd>Ctrl Enter</kbd></button>
     <button id="backup">Backup erstellen</button>
     <button id="help" aria-label="Tastaturhilfe">?</button>
   </header>
@@ -58,8 +58,28 @@
     <dt>Pfeile / Tab</dt><dd>Zellen auswählen</dd><dt>Enter / F2</dt><dd>Bearbeiten; Enter speichert und geht nach unten</dd>
     <dt>Esc</dt><dd>Änderung verwerfen / Dialog schließen</dd><dt>Leertaste</dt><dd>Erledigt-Zelle umschalten</dd>
     <dt>Ctrl+Leertaste</dt><dd>Aktuellen Task umschalten</dd><dt>Delete / Backspace</dt><dd>Zelle leeren</dd>
-    <dt>Ctrl/Cmd + Delete/Backspace</dt><dd>Task in Papierkorb</dd><dt>Alt+N / Ctrl+Enter</dt><dd>Neuer Task</dd><dt>Ctrl+F</dt><dd>Suche</dd>
+    <dt>Ctrl/Cmd + Delete/Backspace</dt><dd>Task in Papierkorb</dd><dt>Alt+N / Ctrl+Shift+N</dt><dd>Schnelleingabe (macOS zusätzlich: Ctrl+Option+N)</dd><dt>Ctrl+Shift+P</dt><dd>Command Palette (macOS zusätzlich: Ctrl+Option+P)</dd><dt>Ctrl+Enter</dt><dd>Neuer Task</dd><dt>Ctrl+F</dt><dd>Suche</dd>
   </dl><button id="close-help">Schließen</button></dialog>
+
+  <dialog id="quick-add" class="command-dialog" aria-labelledby="quick-add-title">
+    <h2 id="quick-add-title">Schnelleingabe</h2>
+    <label class="overlay-input-label">Aufgabe
+      <input id="quick-input" autocomplete="off" aria-describedby="quick-help quick-error" aria-controls="quick-suggestions" aria-autocomplete="list" placeholder="Aufgabe @Bearbeiter +3 #Tag !Projekt">
+    </label>
+    <div id="quick-suggestions" class="command-results hidden" role="listbox"></div>
+    <p id="quick-error" class="overlay-error" role="alert"></p>
+    <p id="quick-help" class="syntax-help"><span>@ Bearbeiter</span><span># Tag</span><span>! Projekt</span><span>% Kategorie</span><span>^ Abhängigkeit</span><span>+3 / +1w / 15.10. Fälligkeit</span><span>URL Link</span></p>
+    <p class="key-help"><kbd>Enter</kbd>: speichern &amp; schließen · <kbd>Shift+Enter</kbd>: speichern &amp; nächsten Task eingeben · <kbd>Esc</kbd>: schließen</p>
+  </dialog>
+
+  <dialog id="command-palette" class="command-dialog" aria-labelledby="palette-title">
+    <h2 id="palette-title">Command Palette</h2>
+    <label class="overlay-input-label">Befehl oder Task suchen
+      <input id="palette-input" type="search" autocomplete="off" aria-controls="palette-results" aria-autocomplete="list" placeholder="Aktion, #123, Titel, Bearbeiter …">
+    </label>
+    <div id="palette-results" class="command-results" role="listbox"></div>
+    <p class="key-help"><kbd>↑/↓</kbd>: auswählen · <kbd>Enter</kbd>: öffnen · <kbd>Esc</kbd>: schließen</p>
+  </dialog>
   <datalist id="assignees"></datalist><datalist id="projects"></datalist><datalist id="categories"></datalist><datalist id="tags"></datalist><datalist id="task-options"></datalist>
   <div id="toast" role="status" aria-live="polite"></div>
   <script src="/app.js"></script>

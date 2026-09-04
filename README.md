@@ -29,7 +29,9 @@ python app.py
 
 ## Bedienung
 
-In der Tabelle navigieren Pfeiltasten und Tab zwischen Zellen. Enter oder F2 startet die Bearbeitung; Enter speichert und springt in derselben Spalte nach unten. Esc verwirft die laufende Zellbearbeitung. `Alt+N` oder `Ctrl+Enter` erzeugt einen Task und `Ctrl+Leertaste` schaltet den aktuellen Task um. `Ctrl+Delete` beziehungsweise auf dem Mac `Ctrl+Backspace` oder `Cmd+Backspace` verschiebt ihn in den Papierkorb. `?` zeigt alle wichtigen Kürzel.
+In der Tabelle navigieren Pfeiltasten und Tab zwischen Zellen. Enter oder F2 startet die Bearbeitung; Enter speichert und springt in derselben Spalte nach unten. Esc verwirft die laufende Zellbearbeitung. `Alt+N` oder `Ctrl+Shift+N` öffnet die Schnelleingabe, `Ctrl+Shift+P` die Command Palette und `Ctrl+Enter` erzeugt direkt einen leeren Task. Unter macOS stehen zusätzlich die browserfreundlichen Kombinationen `Ctrl+Option+N` für die Schnelleingabe und `Ctrl+Option+P` für die Command Palette bereit. `Ctrl+Leertaste` schaltet den aktuellen Task um. `Ctrl+Delete` beziehungsweise auf dem Mac `Ctrl+Backspace` oder `Cmd+Backspace` verschiebt ihn in den Papierkorb. `?` zeigt alle wichtigen Kürzel.
+
+Die Schnelleingabe versteht beispielsweise `Angebot prüfen @Müller +3 #Kunde !Netzausbau %Vertrag ^127 https://example.com`. Mehrwort-Werte werden wie `@"Max Mustermann"` in Anführungszeichen gesetzt.
 
 Datumsfelder verstehen unter anderem `03.10.2026`, `03.10.26`, `15.10.`, `heute`, `morgen`, `+3`, `+15` und `+1w`.
 

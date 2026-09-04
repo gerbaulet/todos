@@ -55,6 +55,11 @@ class ApiTests(unittest.TestCase):
         error=self.request("PATCH", f"/api/tasks/{a['id']}", {"dependencies":[b["id"]]}, 400)
         self.assertIn("Zyklus", error["error"])
 
+    def test_quick_add_payload_uses_create_cycle_validation(self):
+        seed=self.request("POST", "/api/tasks", {"title":"Vorhanden"}, 201)
+        error=self.request("POST", "/api/tasks", {"title":"Quick Add", "dependencies":[seed["id"]+1]}, 400)
+        self.assertIn("selbst", error["error"])
+
     def test_list_and_global_history(self):
         self.assertIsInstance(self.request("GET", "/api/tasks"), list)
         self.assertIsInstance(self.request("GET", "/api/history"), list)
