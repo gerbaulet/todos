@@ -193,9 +193,14 @@ async function renderHistory(){try{const q=$("#h-search").value.toLocaleLowerCas
 const DAY={week:48,month:18,quarter:8,year:3};
 function dayOffset(iso,start){return Math.round((new Date(iso+"T12:00:00")-start)/86400000)}
 function timelineMarkerWidth(task){
-  const canvas=timelineMarkerWidth.canvas||(timelineMarkerWidth.canvas=document.createElement("canvas")),context=canvas.getContext("2d");
-  context.font="14px system-ui";
-  return Math.min(264,Math.max(54,Math.ceil(context.measureText(task.title||"(ohne Titel)").width)+18));
+  const marker=document.createElement("button");
+  marker.className="tl-marker";
+  marker.style.cssText="position:fixed;visibility:hidden;left:-10000px;top:-10000px;width:max-content";
+  marker.textContent=task.title||"(ohne Titel)";
+  document.body.append(marker);
+  const width=Math.ceil(marker.getBoundingClientRect().width);
+  marker.remove();
+  return width;
 }
 function renderTimeline(){
   const tasks=filteredTasks(false),dated=tasks.filter(t=>t.due_date),assignees=[...new Set(tasks.map(t=>t.assignee||"Ohne Bearbeiter"))].sort((a,b)=>a.localeCompare(b,"de"));
