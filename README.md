@@ -19,9 +19,25 @@ docker compose up -d
 docker compose down
 ```
 
+### Windows
+
+Docker Desktop muss Linux-Container verwenden. Das Dockerfile benötigt weder CGO noch einen C-Compiler und baut automatisch für die von Docker gewählte Architektur:
+
+```console
+docker compose build
+docker compose up -d
+```
+
+Alternativ lässt sich ohne Docker ein natives Windows-Binary erzeugen:
+
+```console
+go build -o todo.exe .
+.\todo.exe
+```
+
 ## Start ohne Docker
 
-Vorausgesetzt werden Go 1.26 und ein C-Compiler für den SQLite-Treiber:
+Vorausgesetzt wird Go 1.26. Der SQLite-Treiber ist vollständig in Go implementiert; ein C-Compiler wird nicht benötigt:
 
 ```console
 go run .

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 type appError struct {
@@ -83,8 +84,9 @@ func openDatabase(path string) (*Database, error) {
 	if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
 		return nil, err
 	}
-	dsn := "file:" + abs + "?_foreign_keys=on&_busy_timeout=10000&_txlock=immediate"
-	db, err := sql.Open("sqlite3", dsn)
+	location := (&url.URL{Scheme: "file", Path: filepath.ToSlash(abs)}).String()
+	dsn := location + "?_foreign_keys=on&_busy_timeout=10000&_txlock=immediate"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
