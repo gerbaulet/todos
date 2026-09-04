@@ -187,8 +187,31 @@ class Database:
 
     def list_tasks(self, include_deleted=True):
         with self.read() as db:
-            ids = [r[0] for r in db.execute("SELECT id FROM tasks" + ("" if include_deleted else " WHERE deleted_at IS NULL"))]
-            return [self._task_in_db(db, task_id) for task_id in ids]
+            where = "" if include_deleted else " WHERE t.deleted_at IS NULL"
+            rows = db.execute("""SELECT t.*, a.name assignee, p.name project, c.name category
+                FROM tasks t LEFT JOIN assignees a ON a.id=t.assignee_id
+                LEFT JOIN projects p ON p.id=t.project_id LEFT JOIN categories c ON c.id=t.category_id"""
+                + where + " ORDER BY t.id").fetchall()
+            tasks = []
+            by_id = {}
+            for row in rows:
+                task = dict(row)
+                task["completed"] = bool(task["completed"])
+                task["tags"] = []
+                task["dependencies"] = []
+                tasks.append(task)
+                by_id[task["id"]] = task
+
+            relation_where = "" if include_deleted else " WHERE t.deleted_at IS NULL"
+            for row in db.execute("""SELECT x.task_id, g.name
+                FROM task_tags x JOIN tags g ON g.id=x.tag_id JOIN tasks t ON t.id=x.task_id"""
+                + relation_where + " ORDER BY x.task_id, g.name COLLATE NOCASE"):
+                by_id[row["task_id"]]["tags"].append(row["name"])
+            for row in db.execute("""SELECT d.task_id, d.depends_on_id
+                FROM dependencies d JOIN tasks t ON t.id=d.task_id"""
+                + relation_where + " ORDER BY d.task_id, d.depends_on_id"):
+                by_id[row["task_id"]]["dependencies"].append(row["depends_on_id"])
+            return tasks
 
     @staticmethod
     def _tag_names(data):

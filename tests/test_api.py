@@ -3,6 +3,7 @@ import os
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -63,6 +64,10 @@ class ApiTests(unittest.TestCase):
     def test_list_and_global_history(self):
         self.assertIsInstance(self.request("GET", "/api/tasks"), list)
         self.assertIsInstance(self.request("GET", "/api/history"), list)
+
+    def test_healthcheck_does_not_load_tasks(self):
+        with patch.object(app.DB, "list_tasks", side_effect=AssertionError("tasks loaded")):
+            self.assertEqual(self.request("GET", "/healthz"), {"ok": True})
 
 
 if __name__ == "__main__":

@@ -57,6 +57,29 @@ class DatabaseTests(unittest.TestCase):
         self.db.update_task(task["id"], {"tags": ["Neu"]})
         self.assertEqual(self.db.get_task(task["id"])["tags"], ["Neu"])
 
+    def test_list_tasks_loads_relations_in_three_queries(self):
+        one = self.db.create_task({"title": "Eins", "tags": ["Beta", "alpha"]})
+        two = self.db.create_task({"title": "Zwei", "dependencies": [one["id"]]})
+        deleted = self.db.create_task({"title": "Gelöscht", "tags": ["Archiv"]})
+        self.db.delete_task(deleted["id"])
+
+        statements = []
+        original_connect = self.db.connect
+
+        def traced_connect():
+            db = original_connect()
+            db.set_trace_callback(statements.append)
+            return db
+
+        with patch.object(self.db, "connect", side_effect=traced_connect):
+            tasks = self.db.list_tasks(include_deleted=False)
+
+        self.assertEqual([task["id"] for task in tasks], [one["id"], two["id"]])
+        self.assertEqual(tasks[0]["tags"], ["alpha", "Beta"])
+        self.assertEqual(tasks[1]["dependencies"], [one["id"]])
+        selects = [sql for sql in statements if sql.lstrip().upper().startswith("SELECT")]
+        self.assertEqual(len(selects), 3)
+
     def test_dependencies_and_cycles(self):
         one = self.db.create_task({"title": "Eins"})
         two = self.db.create_task({"title": "Zwei"})
