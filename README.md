@@ -1,6 +1,6 @@
 # Lokale To-do-App
 
-Eine lokale, keyboard-first To-do-Anwendung für einen Benutzer. Sie verwendet ausschließlich Python 3, SQLite und Vanilla HTML/CSS/JavaScript. Mit Docker ist keine lokale Python-Installation nötig.
+Eine lokale, keyboard-first To-do-Anwendung für einen Benutzer. Das Backend ist in Go geschrieben; die Oberfläche verwendet Vanilla HTML/CSS/JavaScript. Die Daten liegen in SQLite. Mit Docker ist keine lokale Go-Installation nötig.
 
 ## Start mit Docker
 
@@ -10,7 +10,7 @@ Im Projektordner:
 docker compose up
 ```
 
-Beim ersten Start wird das offizielle Python-Basisimage geladen und das kleine lokale Image gebaut. Danach im Browser [http://127.0.0.1:8765](http://127.0.0.1:8765) öffnen. Der veröffentlichte Port ist ausschließlich an `127.0.0.1` gebunden.
+Beim ersten Start wird das Go-Backend gebaut und anschließend als statisches Binary in einem minimalen Runtime-Image ausgeführt. Danach im Browser [http://127.0.0.1:8765](http://127.0.0.1:8765) öffnen. Der veröffentlichte Port ist ausschließlich an `127.0.0.1` gebunden.
 
 Beenden mit `Ctrl+C`. Im Hintergrund starten und später beenden:
 
@@ -21,10 +21,10 @@ docker compose down
 
 ## Start ohne Docker
 
-Falls Python 3 vorhanden ist:
+Vorausgesetzt werden Go 1.26 und ein C-Compiler für den SQLite-Treiber:
 
 ```console
-python app.py
+go run .
 ```
 
 ## Bedienung
@@ -38,14 +38,17 @@ Datumsfelder verstehen unter anderem `03.10.2026`, `03.10.26`, `15.10.`, `heute`
 ## Tests
 
 ```console
-python -m unittest discover -s tests -v
+go test ./...
+node tests/test_js_logic.js
 ```
+
+Der JavaScript-Test ist optional. Der Docker-Build führt die Go-Tests automatisch aus.
 
 ## Daten und Backup
 
-Alle Fachdaten, Einstellungen und die vollständige Historie liegen immer in `data/todo.sqlite` – unabhängig davon, ob die Anwendung mit Docker oder direkt mit Python gestartet wird. Der Ordner und die Datei werden bei Bedarf automatisch angelegt.
+Alle Fachdaten, Einstellungen und die vollständige Historie liegen immer in `data/todo.sqlite` – unabhängig davon, ob die Anwendung mit Docker oder direkt mit Go gestartet wird. Der Ordner und die Datei werden bei Bedarf automatisch angelegt. Das Schema ist mit der Python-Variante kompatibel.
 
-„Backup erstellen“ lädt eine konsistente, über die SQLite-Backup-API erzeugte Kopie herunter. Zum Wiederherstellen:
+„Backup erstellen“ lädt eine konsistente, mit SQLite `VACUUM INTO` erzeugte Kopie herunter. Zum Wiederherstellen:
 
 1. Anwendung beenden.
 2. Die aktuelle `data/todo.sqlite` sichern oder umbenennen.

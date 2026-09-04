@@ -1,5 +1,5 @@
-__pycache__/
-*.py[cod]
+/todo
+/coverage.out
 todo.sqlite
 todo-backup-*.sqlite
 data/*
