@@ -258,7 +258,7 @@ async function submitQuickAdd(keepOpen){
   try{
     const data=parseQuickAdd(input.value),task=await api("/api/tasks",{method:"POST",body:JSON.stringify(data)});state.tasks.push(task);await refreshLookups();
     if(keepOpen){input.value="";hideQuickSuggestions();render();input.focus();toast(`Task #${task.id} erstellt`);return}
-    saveSettings({view:"table"});state.selected={id:task.id,field:"title"};closeOverlay(false);render();const cell=$(`tr[data-id="${task.id}"] td[data-field="title"]`);cell?.scrollIntoView({block:"nearest"});cell?.focus();toast(`Task #${task.id} erstellt`);
+    input.value="";hideQuickSuggestions();saveSettings({view:"table"});state.selected={id:task.id,field:"title"};closeOverlay(false);render();const cell=$(`tr[data-id="${task.id}"] td[data-field="title"]`);cell?.scrollIntoView({block:"nearest"});cell?.focus();toast(`Task #${task.id} erstellt`);
   }catch(e){error.textContent=e.message;input.focus()}
 }
 
