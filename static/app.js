@@ -7,7 +7,8 @@ const columns=[
 ];
 const optional=["project","category","tags","notes","link"];
 const filterControls={search:["search","tl-search"],status:["status","tl-status"],type:["f-type","tl-type"],assignee:["f-assignee","tl-assignee"],project:["f-project","tl-project"],category:["f-category","tl-category"],tag:["f-tag","tl-tag"],due:["f-due"]};
-const defaults={view:"table",sort:{field:"due_date",dir:1},visibleColumns:["notes"],filters:{status:"active"},zoom:"month",showDependencies:false,timelineScroll:0,recentCommands:[]};
+const defaults={view:"table",sort:{field:"due_date",dir:1},visibleColumns:["notes"],columnWidths:{},filters:{status:"active"},zoom:"month",showDependencies:false,timelineScroll:0,recentCommands:[]};
+const defaultColumnWidths={id:55,title:420,assignee:150,due_date:210,notes:260,completed:82,dependencies:180,project:160,category:150,tags:170,link:220};
 const state={tasks:[],lookups:{assignees:[],projects:[],categories:[],tags:[]},settings:{...defaults},selected:null,editing:null,saveTimer:null,pendingSettings:{},overlay:null,overlayReturnFocus:null,quickIndex:0,paletteIndex:0,paletteItems:[]};
 
 async function api(path,options={}){
@@ -124,6 +125,10 @@ function applySettings(){
 }
 function esc(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function activeColumns(){return columns.filter(c=>!optional.includes(c[0])||(state.settings.visibleColumns||[]).includes(c[0]))}
+function columnWidth(field){return Math.max(55,Math.min(800,Number(state.settings.columnWidths?.[field])||defaultColumnWidths[field]||140))}
+function applyTableWidth(cols){const table=$("#tasks"),actionWidth=state.settings.view==="trash"?140:0;table.style.width=cols.reduce((sum,col)=>sum+columnWidth(col[0]),actionWidth)+"px"}
+function setColumnWidth(field,width,save=false){state.settings.columnWidths={...(state.settings.columnWidths||{}),[field]:Math.max(55,Math.min(800,Math.round(width)))};const value=columnWidth(field),col=$(`#tasks col[data-field="${field}"]`),th=$(`#tasks th[data-field="${field}"]`);if(col)col.style.width=value+"px";if(th)th.style.setProperty("width",value+"px","important");applyTableWidth(activeColumns());if(save)saveSettings({columnWidths:state.settings.columnWidths})}
+function startColumnResize(ev,handle){ev.preventDefault();ev.stopPropagation();const field=handle.dataset.resize,th=handle.closest("th"),startX=ev.clientX,startWidth=th.getBoundingClientRect().width;document.body.classList.add("resizing-columns");const move=e=>setColumnWidth(field,startWidth+e.clientX-startX);const stop=()=>{document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",stop);document.body.classList.remove("resizing-columns");saveSettings({columnWidths:state.settings.columnWidths})};document.addEventListener("pointermove",move);document.addEventListener("pointerup",stop,{once:true})}
 function recommendedRanges(t){return t.dependencies.filter(d=>d.recommended_start).map(d=>({start:d.recommended_start,end:d.recommended_end,dependency:d}))}
 function effectiveDueStart(t){return t.due_start||recommendedRanges(t).map(x=>x.start).sort()[0]||null}
 function filteredTasks(includeDue=true){
@@ -160,7 +165,9 @@ function recommendationLabel(d){if(!d.recommended_start)return "";return d.recom
 function dueDetails(t){const recommendations=t.dependencies.filter(d=>d.recommended_start);return [t.due_display&&`Eigener Termin: ${t.due_display}`,...recommendations.map(d=>`Abhängigkeit ${depLabel(d)}: ${recommendationLabel(d)}`)].filter(Boolean).join("\n")}
 function renderTable(){
   const cols=activeColumns(),data=filteredTasks(),head=$("#tasks thead tr"),body=$("#tasks tbody");
-  head.innerHTML=cols.map(c=>`<th data-field="${c[0]}">${c[1]}${state.settings.sort.field===c[0]?(state.settings.sort.dir>0?" ▲":" ▼"):""}</th>`).join("")+(state.settings.view==="trash"?"<th>Aktion</th>":"");
+  $("#tasks colgroup").innerHTML=cols.map(c=>`<col data-field="${c[0]}" style="width:${columnWidth(c[0])}px">`).join("")+(state.settings.view==="trash"?'<col style="width:140px">':"");
+  applyTableWidth(cols);
+  head.innerHTML=cols.map(c=>`<th data-field="${c[0]}" style="width:${columnWidth(c[0])}px!important">${c[1]}${state.settings.sort.field===c[0]?(state.settings.sort.dir>0?" ▲":" ▼"):""}<span class="column-resizer" data-resize="${c[0]}" role="separator" aria-orientation="vertical" aria-label="Spalte ${c[1]} in der Breite ändern" tabindex="0"></span></th>`).join("")+(state.settings.view==="trash"?"<th>Aktion</th>":"");
   body.innerHTML=data.map(t=>`<tr data-id="${t.id}" class="${t.completed?"completed-row":""}">${cols.map(c=>{
     const color=c[0]==="assignee"?(state.lookups.assignees.find(a=>a.name===t.assignee)?.color):null;
     const due=c[0]==="due_date",recommendations=due?t.dependencies.filter(d=>d.recommended_start):[],warning=recommendations.some(d=>d.deviates);
@@ -342,7 +349,9 @@ function executePaletteItem(){
 
 function bind(){
   $("#tasks").addEventListener("click",e=>{const restore=e.target.closest("[data-restore]");if(restore)return restoreTask(+restore.dataset.restore);const cell=e.target.closest("td");if(cell?.dataset.field){let cursor=null;if(cell.dataset.field==="notes"&&e.detail===2){const caret=document.caretPositionFromPoint?.(e.clientX,e.clientY);if(caret&&cell.contains(caret.offsetNode))cursor=caret.offset}selectCell(cell);if(e.detail===2){if(cell.dataset.field==="id")openEditor(+cell.closest("tr").dataset.id);else editCell(cell,cursor)}}});$("#tasks").addEventListener("keydown",onTableKey);
-  $("#tasks thead").onclick=e=>{const f=e.target.closest("th")?.dataset.field;if(!f)return;const old=state.settings.sort||defaults.sort;saveSettings({sort:{field:f,dir:old.field===f?-old.dir:1}});renderTable()};
+  $("#tasks thead").onclick=e=>{if(e.target.closest(".column-resizer"))return;const f=e.target.closest("th")?.dataset.field;if(!f)return;const old=state.settings.sort||defaults.sort;saveSettings({sort:{field:f,dir:old.field===f?-old.dir:1}});renderTable()};
+  $("#tasks thead").addEventListener("pointerdown",e=>{const handle=e.target.closest(".column-resizer");if(handle)startColumnResize(e,handle)});
+  $("#tasks thead").addEventListener("keydown",e=>{const handle=e.target.closest(".column-resizer");if(handle&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){e.preventDefault();e.stopPropagation();setColumnWidth(handle.dataset.resize,columnWidth(handle.dataset.resize)+(e.key==="ArrowRight"?10:-10),true)}});
   $$("nav button").forEach(b=>b.onclick=()=>{saveSettings({view:b.dataset.view});render()});
   for(const [key,ids] of Object.entries(filterControls))for(const id of ids){const el=$("#"+id);el.addEventListener(key==="search"?"input":"change",()=>{const filters={...state.settings.filters,[key]:el.value};saveSettings({filters});for(const peer of ids)if(peer!==id)$("#"+peer).value=el.value;if(state.settings.view==="timeline")renderTimeline();else renderTable()})}
   $("#columns").onchange=()=>{const visibleColumns=$$("#columns input:checked").map(x=>x.value);saveSettings({visibleColumns});renderTable()};
