@@ -31,9 +31,11 @@ python app.py
 
 In der Tabelle navigieren Pfeiltasten und Tab zwischen Zellen. Enter oder F2 startet die Bearbeitung; Enter speichert und springt in derselben Spalte nach unten. Esc verwirft die laufende Zellbearbeitung. `Alt+N` oder `Ctrl+Shift+N` öffnet die Schnelleingabe, `Ctrl+Shift+P` die Command Palette und `Ctrl+Enter` erzeugt direkt einen leeren Task. Unter macOS stehen zusätzlich die browserfreundlichen Kombinationen `Ctrl+Option+N` für die Schnelleingabe und `Ctrl+Option+P` für die Command Palette bereit. `Ctrl+Leertaste` schaltet den aktuellen Task um. `Ctrl+Delete` beziehungsweise auf dem Mac `Ctrl+Backspace` oder `Cmd+Backspace` verschiebt ihn in den Papierkorb. `?` zeigt alle wichtigen Kürzel.
 
-Die Schnelleingabe versteht beispielsweise `Angebot prüfen @Müller +3 #Kunde !Netzausbau %Vertrag ^127 https://example.com`. Mehrwort-Werte werden wie `@"Max Mustermann"` in Anführungszeichen gesetzt.
+Die Schnelleingabe versteht beispielsweise `Angebot prüfen @Müller Q2 2027 #Kunde !Netzausbau %Vertrag ^127+2w https://example.com`. Mehrwort-Werte werden wie `@"Max Mustermann"` in Anführungszeichen gesetzt. Dependency-Offsets sind mit `d`, `w`, `m` und `y` möglich, etwa `^127+3d` oder `^127+1m`.
 
-Datumsfelder verstehen unter anderem `03.10.2026`, `03.10.26`, `15.10.`, `heute`, `morgen`, `+3`, `+15` und `+1w`.
+Terminfelder verstehen exakte und ungefähre Angaben: `03.10.2026`, `15.10.`, `heute`, `+3`, `+1w`, `KW 33`, `KW33/2027`, `September 2027`, `09/2027`, `Q2 2027` und `2027`. Die Tabelle erhält diese Genauigkeit; die Timeline zeigt ungefähre Termine als dezente Zeitfenster.
+
+Ein Dependency-Offset erzeugt nur eine dynamische Empfehlung. Ein eigener Termin wird dadurch weder gesetzt noch verschoben. Beispiel: Aus `September 2026` und `^127+2w` wird der empfohlene Bereich `15.09.2026–14.10.2026`, ohne ihn als Fälligkeit zu speichern.
 
 ## Tests
 

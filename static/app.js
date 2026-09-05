@@ -17,28 +17,48 @@ async function api(path,options={}){
 }
 function toast(message,error=false){const el=$("#toast");el.textContent=message;el.className=`show ${error?"error":""}`;clearTimeout(el._t);el._t=setTimeout(()=>el.className="",3200)}
 function localDate(){const d=new Date(),off=d.getTimezoneOffset();return new Date(d-off*60000).toISOString().slice(0,10)}
-function parseDate(text,base=new Date()){
-  let s=String(text||"").trim().toLocaleLowerCase("de"); if(!s)return null;
-  const day=new Date(base.getFullYear(),base.getMonth(),base.getDate());
-  if(s==="heute")return isoLocal(day); if(s==="morgen"){day.setDate(day.getDate()+1);return isoLocal(day)}
-  let m=s.match(/^\+(\d+)\s*(w|wochen?)?$/i); if(m){day.setDate(day.getDate()+(+m[1])*(m[2]?7:1));return isoLocal(day)}
-  m=s.match(/^(\d{1,2})\.(\d{1,2})\.?(?:(\d{2}|\d{4}))?$/); if(!m)return undefined;
-  let year=m[3]?+m[3]:day.getFullYear(); if(year<100)year+=2000;
-  let candidate=new Date(year,+m[2]-1,+m[1]);
+function isoWeekStart(year,week){const d=new Date(year,0,4,12),dow=d.getDay()||7;d.setDate(d.getDate()-dow+1+(week-1)*7);return d}
+function isoWeek(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate(),12),dow=x.getDay()||7;x.setDate(x.getDate()+4-dow);const year=x.getFullYear(),first=new Date(year,0,4,12);return [year,1+Math.round((x-isoWeekStart(year,1))/604800000)]}
+function parseDue(text,base=new Date()){
+  let s=String(text||"").trim().toLocaleLowerCase("de");if(!s)return null;
+  const day=new Date(base.getFullYear(),base.getMonth(),base.getDate(),12);let m;
+  if(s==="heute")return {due_type:"exact",due_value:isoLocal(day)};
+  if(s==="morgen"){day.setDate(day.getDate()+1);return {due_type:"exact",due_value:isoLocal(day)}}
+  m=s.match(/^\+(\d+)\s*(w|wochen?)?$/i);if(m){day.setDate(day.getDate()+(+m[1])*(m[2]?7:1));return {due_type:"exact",due_value:isoLocal(day)}}
+  m=s.match(/^kw\s*(\d{1,2})(?:\s*(?:\/|\s)\s*(\d{4}))?$/i);if(m){
+    const week=+m[1];let year=m[2]?+m[2]:day.getFullYear(),start;
+    try{start=isoWeekStart(year,week)}catch{return undefined}
+    if(week<1||week>53||isoWeek(start)[1]!==week)return undefined;
+    const end=new Date(start);end.setDate(end.getDate()+6);if(!m[2]&&end<day)year++;
+    start=isoWeekStart(year,week);if(isoWeek(start)[1]!==week)return undefined;
+    return {due_type:"week",due_value:`${year}-W${String(week).padStart(2,"0")}`};
+  }
+  m=s.match(/^q([1-4])\s*(?:\/|\s)\s*(\d{4})$/i);if(m)return {due_type:"quarter",due_value:`${m[2]}-Q${m[1]}`};
+  const months={januar:1,jan:1,februar:2,feb:2,"märz":3,maerz:3,mrz:3,april:4,apr:4,mai:5,juni:6,jun:6,juli:7,jul:7,august:8,aug:8,september:9,sep:9,oktober:10,okt:10,november:11,nov:11,dezember:12,dez:12};
+  m=s.match(/^([a-zä]+)\s+(\d{4})$/i);if(m&&months[m[1]])return {due_type:"month",due_value:`${m[2]}-${String(months[m[1]]).padStart(2,"0")}`};
+  m=s.match(/^(0?[1-9]|1[0-2])\/(\d{4})$/);if(m)return {due_type:"month",due_value:`${m[2]}-${String(+m[1]).padStart(2,"0")}`};
+  if(/^\d{4}$/.test(s))return {due_type:"year",due_value:s};
+  m=s.match(/^(\d{1,2})\.(\d{1,2})\.?(?:(\d{2}|\d{4}))?$/);if(!m)return undefined;
+  let year=m[3]?+m[3]:day.getFullYear();if(year<100)year+=2000;let candidate=new Date(year,+m[2]-1,+m[1],12);
   if(candidate.getFullYear()!==year||candidate.getMonth()!==+m[2]-1||candidate.getDate()!==+m[1])return undefined;
   if(!m[3]&&candidate.getTime()<day.getTime()-60*86400000)candidate.setFullYear(year+1);
-  return isoLocal(candidate);
+  return {due_type:"exact",due_value:isoLocal(candidate)};
 }
+function parseDate(text,base=new Date()){const due=parseDue(text,base);return due===undefined?undefined:due?.due_value??null}
 function quickTokens(input){
   const tokens=[],re=/(?:[@#!%^]"[^"]*"|"[^"]*"|\S+)/g;let match;
   while((match=re.exec(String(input||""))))tokens.push(match[0]);
   return tokens;
 }
+function parseDependency(value){const m=String(value).trim().match(/^[#^]?(\d+)\s*(?:\+\s*(\d+)\s*([dwmy]))?$/i);if(!m)throw Error("Abhängigkeiten benötigen eine Task-ID und optional einen Offset wie ^123+2w.");return {depends_on_task_id:+m[1],offset_value:m[2]?+m[2]:null,offset_unit:m[3]?({d:"day",w:"week",m:"month",y:"year"})[m[3].toLowerCase()]:null}}
+function parseDependencies(value){return String(value||"").split(",").map(x=>x.trim()).filter(Boolean).map(parseDependency)}
 function parseQuickAdd(input,base=new Date()){
   if((String(input||"").match(/"/g)||[]).length%2)throw Error("Anführungszeichen sind nicht geschlossen.");
-  const result={title:"",assignee:null,due_date:null,tags:[],project:null,category:null,dependencies:[],link:null},title=[];
+  const result={title:"",assignee:null,due_type:null,due_value:null,tags:[],project:null,category:null,dependencies:[],link:null},title=[];
   const single={"@":"assignee","!":"project","%":"category"};
-  for(const token of quickTokens(input)){
+  const tokens=quickTokens(input);
+  for(let i=0;i<tokens.length;i++){
+    const token=tokens[i];
     if(/^https?:\/\//i.test(token)){
       if(result.link)throw Error("Bitte nur einen Link angeben.");result.link=token;continue;
     }
@@ -47,15 +67,16 @@ function parseQuickAdd(input,base=new Date()){
       let value=token.slice(1);if(value.startsWith('"')&&value.endsWith('"'))value=value.slice(1,-1);value=value.trim();
       if(!value)throw Error(`Nach ${prefix} fehlt ein Wert.`);
       if(prefix==="#"){result.tags.push(value);continue}
-      if(prefix==="^"){if(!/^\d+$/.test(value))throw Error("Abhängigkeiten müssen Task-IDs sein.");result.dependencies.push(+value);continue}
+      if(prefix==="^"){result.dependencies.push(parseDependency(value));continue}
       const field=single[prefix];if(result[field])throw Error(`${prefix} darf nur einmal vorkommen.`);result[field]=value;continue;
     }
-    const date=parseDate(token,base);
-    if(date!==undefined){if(result.due_date)throw Error("Bitte nur ein Fälligkeitsdatum angeben.");result.due_date=date;continue}
-    if(/^\+/.test(token)||/^\d{1,2}\.\d{1,2}/.test(token))throw Error(`Datum nicht erkannt: ${token}`);
+    let parsed,used=0;
+    for(let n=Math.min(3,tokens.length-i);n>=1;n--){const candidate=parseDue(tokens.slice(i,i+n).join(" "),base);if(candidate!==undefined){parsed=candidate;used=n;break}}
+    if(used){if(result.due_type)throw Error("Bitte nur einen Fälligkeitstermin angeben.");if(parsed)Object.assign(result,parsed);i+=used-1;continue}
+    if(/^\+|^kw|^q\d|^\d{1,2}\.\d{1,2}/i.test(token))throw Error(`Datum nicht erkannt: ${token}`);
     title.push(token.startsWith('"')&&token.endsWith('"')?token.slice(1,-1):token);
   }
-  result.title=title.join(" ").trim();result.tags=[...new Set(result.tags)];result.dependencies=[...new Set(result.dependencies)];
+  result.title=title.join(" ").trim();result.tags=[...new Set(result.tags)];result.dependencies=[...new Map(result.dependencies.map(x=>[x.depends_on_task_id,x])).values()];
   if(!result.title)throw Error("Bitte einen Aufgabentitel eingeben.");
   return result;
 }
@@ -108,12 +129,12 @@ function filteredTasks(includeDue=true){
     if(f.status==="open"&&t.completed)return false;if(f.status==="completed"&&!t.completed)return false;
     if(f.status==="active"&&t.completed&&now-parseUTC(t.completed_at)>30*60000)return false;
     if(f.assignee&&t.assignee!==f.assignee||f.project&&t.project!==f.project||f.category&&t.category!==f.category||f.tag&&!t.tags.includes(f.tag))return false;
-    if(includeDue){if(f.due==="overdue"&&(!t.due_date||t.due_date>=today||t.completed))return false;if(f.due==="today"&&t.due_date!==today)return false;if(f.due==="week"&&(!t.due_date||t.due_date<today||t.due_date>week))return false;if(f.due==="none"&&t.due_date)return false}
+    if(includeDue){if(f.due==="overdue"&&(!t.due_end||t.due_end>=today||t.completed))return false;if(f.due==="today"&&(!t.due_start||t.due_start>today||t.due_end<today))return false;if(f.due==="week"&&(!t.due_start||t.due_end<today||t.due_start>week))return false;if(f.due==="none"&&t.due_type)return false}
     const q=(f.search||"").toLocaleLowerCase("de");return !q||[t.title,t.assignee,t.project,t.category,t.link,...t.tags].join(" ").toLocaleLowerCase("de").includes(q);
   });
   if(state.settings.view==="completed")return data.sort((a,b)=>(b.completed_at||"").localeCompare(a.completed_at||""));
   const {field,dir}=state.settings.sort||defaults.sort;
-  return data.sort((a,b)=>{let av=a[field],bv=b[field];if(field==="due_date"){av=av||"9999";bv=bv||"9999"}if(Array.isArray(av))av=av.join(",");if(Array.isArray(bv))bv=bv.join(",");return String(av??"").localeCompare(String(bv??""),"de",{numeric:true})*dir});
+  return data.sort((a,b)=>{if(field==="due_date"){const rank={exact:1,week:2,month:3,quarter:4,year:5};if(!a.due_start||!b.due_start)return !a.due_start&&!b.due_start?0:!a.due_start?1:-1;return a.due_start.localeCompare(b.due_start)*dir||(rank[a.due_type]||9)-(rank[b.due_type]||9)}let av=a[field],bv=b[field];if(Array.isArray(av))av=av.map(depLabel).join(",");if(Array.isArray(bv))bv=bv.map(depLabel).join(",");return String(av??"").localeCompare(String(bv??""),"de",{numeric:true})*dir});
 }
 function render(){
   const view=state.settings.view;
@@ -124,15 +145,20 @@ function render(){
   $("#table-view").classList.remove("hidden");renderTable();
 }
 function display(t,field){
-  if(field==="due_date")return dateLabel(t[field]);if(field==="completed")return t.completed?"✓":"";
-  if(field==="dependencies")return t.dependencies.map(x=>"#"+x).join(", ");if(field==="tags")return t.tags.join(", ");return t[field]??"";
+  if(field==="due_date")return t.due_display||"";if(field==="completed")return t.completed?"✓":"";
+  if(field==="dependencies")return t.dependencies.map(depLabel).join(", ");if(field==="tags")return t.tags.join(", ");return t[field]??"";
 }
+function depLabel(d){if(typeof d==="number")return "#"+d;const unit={day:"T",week:"W",month:"M",year:"J"}[d.offset_unit];return `#${d.depends_on_task_id}${d.offset_value==null?"":` +${d.offset_value}${unit}`}`}
+function recommendationLabel(d){return d.recommended_start?`${dateLabel(d.recommended_start)}–${dateLabel(d.recommended_end)}`:""}
+function dueDetails(t){const recommendations=t.dependencies.filter(d=>d.recommended_start);return [t.due_display&&`Eigener Termin: ${t.due_display}`,...recommendations.map(d=>`Abhängigkeit: ${depLabel(d)} · Empfohlen: ${recommendationLabel(d)}`)].filter(Boolean).join("\n")}
 function renderTable(){
   const cols=activeColumns(),data=filteredTasks(),head=$("#tasks thead tr"),body=$("#tasks tbody");
   head.innerHTML=cols.map(c=>`<th data-field="${c[0]}">${c[1]}${state.settings.sort.field===c[0]?(state.settings.sort.dir>0?" ▲":" ▼"):""}</th>`).join("")+(state.settings.view==="trash"?"<th>Aktion</th>":"");
   body.innerHTML=data.map(t=>`<tr data-id="${t.id}" class="${t.completed?"completed-row":""}">${cols.map(c=>{
     const color=c[0]==="assignee"?(state.lookups.assignees.find(a=>a.name===t.assignee)?.color):null;
-    return `<td tabindex="${c[2]?0:-1}" data-field="${c[0]}" title="${esc(display(t,c[0]))}" class="${c[0]==="due_date"&&!t.completed&&t.due_date&&t.due_date<localDate()?"overdue":""}">${color?`<span class="color-dot" style="background:${color}"></span>`:""}${esc(display(t,c[0]))}</td>`}).join("")}${state.settings.view==="trash"?`<td><button class="restore" data-restore="${t.id}">Wiederherstellen</button></td>`:""}</tr>`).join("")||'<tr><td class="empty" colspan="10">Keine Aufgaben in dieser Ansicht.</td></tr>';
+    const due=c[0]==="due_date",recommendations=due?t.dependencies.filter(d=>d.recommended_start):[],warning=recommendations.some(d=>d.deviates);
+    const content=due?`${t.due_display?`<span>${esc(t.due_display)}</span>`:""}${recommendations.length?`<small class="recommendation ${warning?"deviation":""}">${warning?"⚠ ":""}Empfohlen: ${esc(recommendations.map(recommendationLabel).join(", "))}</small>`:""}`:`${color?`<span class="color-dot" style="background:${color}"></span>`:""}${esc(display(t,c[0]))}`;
+    return `<td tabindex="${c[2]?0:-1}" data-field="${c[0]}" title="${esc(due?dueDetails(t):display(t,c[0]))}" class="${due&&!t.completed&&t.due_end&&t.due_end<localDate()?"overdue":""}">${content}</td>`}).join("")}${state.settings.view==="trash"?`<td><button class="restore" data-restore="${t.id}">Wiederherstellen</button></td>`:""}</tr>`).join("")||'<tr><td class="empty" colspan="10">Keine Aufgaben in dieser Ansicht.</td></tr>';
   if(state.selected){const cell=$(`tr[data-id="${state.selected.id}"] td[data-field="${state.selected.field}"]`);if(cell)cell.classList.add("cell-selected")}
 }
 async function updateTask(id,change){
@@ -149,10 +175,10 @@ function editCell(cell){
   cell.append(input);state.editing={cell,input,old,field,id:t.id};input.focus();input.setSelectionRange(input.value.length,input.value.length);
   input.addEventListener("keydown",editKey);input.addEventListener("blur",()=>commitEdit("stay"),{once:true});
 }
-function valueFor(field,value){if(field==="due_date"){const x=parseDate(value);if(x===undefined)throw Error("Datum nicht erkannt.");return x}if(field==="tags")return value.split(",").map(x=>x.trim()).filter(Boolean);if(field==="dependencies")return [...value.matchAll(/#?(\d+)/g)].map(x=>+x[1]);return value}
+function valueFor(field,value){if(field==="due_date"){const x=parseDue(value);if(x===undefined)throw Error("Termin nicht erkannt.");return x||{due_type:null,due_value:null}}if(field==="tags")return value.split(",").map(x=>x.trim()).filter(Boolean);if(field==="dependencies")return parseDependencies(value);return value}
 async function commitEdit(move){
   const e=state.editing;if(!e)return;state.editing=null;const val=e.input.value;
-  try{await updateTask(e.id,{[e.field]:valueFor(e.field,val)});if(move==="down")moveCell(1,0,true);if(move==="next")moveCell(0,1,true);if(move==="prev")moveCell(0,-1,true)}catch{render()}
+  try{const value=valueFor(e.field,val);await updateTask(e.id,e.field==="due_date"?value:{[e.field]:value});if(move==="down")moveCell(1,0,true);if(move==="next")moveCell(0,1,true);if(move==="prev")moveCell(0,-1,true)}catch{render()}
 }
 function cancelEdit(){const e=state.editing;if(!e)return;state.editing=null;render();setTimeout(()=>{const c=$(`tr[data-id="${e.id}"] td[data-field="${e.field}"]`);selectCell(c)},0)}
 function editKey(ev){if(["Escape","Enter","Tab"].includes(ev.key))ev.stopPropagation();if(ev.key==="Escape"){ev.preventDefault();cancelEdit()}else if(ev.key==="Enter"&&(ev.ctrlKey||ev.metaKey)){ev.preventDefault();commitEdit("stay").then(()=>createTask())}else if(ev.key==="Enter"){ev.preventDefault();commitEdit("down")}else if(ev.key==="Tab"){ev.preventDefault();commitEdit(ev.shiftKey?"prev":"next")}}
@@ -179,13 +205,13 @@ async function restoreTask(id){try{replaceTask(await api(`/api/tasks/${id}/resto
 
 async function openEditor(id){
   const t=state.tasks.find(x=>x.id===id);if(!t)return;const form=$("#edit-form");$("#edit-id").textContent="#"+id;form.dataset.id=id;
-  for(const f of ["title","assignee","due_date","project","category","link"])form.elements[f].value=f==="due_date"?dateLabel(t[f]):t[f]||"";
+  for(const f of ["title","assignee","due_date","project","category","link"])form.elements[f].value=f==="due_date"?(t.due_display||""):t[f]||"";
   form.elements.assignee_color.value=assigneeColor(t.assignee);
-  form.elements.tags.value=t.tags.join(", ");form.elements.dependencies.value=t.dependencies.map(x=>"#"+x).join(", ");form.elements.completed.checked=t.completed;
+  form.elements.tags.value=t.tags.join(", ");form.elements.dependencies.value=t.dependencies.map(depLabel).join(", ");form.elements.completed.checked=t.completed;
   try{const h=await api(`/api/tasks/${id}/history`);$("#task-history").innerHTML=historyHTML(h)}catch(e){toast(e.message,true)}
   $("#editor").showModal();form.elements.title.focus();form.elements.title.setSelectionRange(form.elements.title.value.length,form.elements.title.value.length)
 }
-async function saveEditor(ev){ev.preventDefault();const form=$("#edit-form"),id=+form.dataset.id,data=Object.fromEntries(new FormData(form)),color=data.assignee_color;delete data.assignee_color;data.completed=form.elements.completed.checked;data.tags=form.elements.tags.value.split(",");data.dependencies=[...form.elements.dependencies.value.matchAll(/#?(\d+)/g)].map(x=>+x[1]);data.due_date=parseDate(data.due_date);if(data.due_date===undefined)return toast("Datum nicht erkannt.",true);try{const task=await updateTask(id,data),person=state.lookups.assignees.find(x=>x.name===task.assignee);if(person&&person.color!==color){await api(`/api/assignees/${person.id}`,{method:"PATCH",body:JSON.stringify({color})});await refreshLookups();render()}$("#editor").close()}catch(e){toast(e.message,true)}}
+async function saveEditor(ev){ev.preventDefault();const form=$("#edit-form"),id=+form.dataset.id,data=Object.fromEntries(new FormData(form)),color=data.assignee_color;delete data.assignee_color;data.completed=form.elements.completed.checked;data.tags=form.elements.tags.value.split(",");try{data.dependencies=parseDependencies(form.elements.dependencies.value)}catch(e){return toast(e.message,true)}const due=parseDue(data.due_date);delete data.due_date;if(due===undefined)return toast("Termin nicht erkannt.",true);Object.assign(data,due||{due_type:null,due_value:null});try{const task=await updateTask(id,data),person=state.lookups.assignees.find(x=>x.name===task.assignee);if(person&&person.color!==color){await api(`/api/assignees/${person.id}`,{method:"PATCH",body:JSON.stringify({color})});await refreshLookups();render()}$("#editor").close()}catch(e){toast(e.message,true)}}
 function historyHTML(items){return items.map(h=>`<div class="history-item"><time>${esc(new Date(h.timestamp).toLocaleString("de-DE"))}</time><span>#${h.task_id}</span><span>${esc(historyText(h))}</span></div>`).join("")||'<p class="empty">Keine Einträge.</p>'}
 function historyText(h){if(h.action==="created")return `Task erstellt: ${h.title||""}`;if(h.action==="deleted")return "Task gelöscht";if(h.action==="restored")return "Task wiederhergestellt";if(h.action==="completed")return "Als erledigt markiert";if(h.action==="reopened")return "Wieder geöffnet";return `${h.field}: ${h.old_value??"–"} → ${h.new_value??"–"}`}
 async function renderHistory(){try{const q=$("#h-search").value.toLocaleLowerCase("de"),from=$("#h-from").value,to=$("#h-to").value,action=$("#h-action").value;let items=await api("/api/history");items=items.filter(h=>(!from||h.timestamp.slice(0,10)>=from)&&(!to||h.timestamp.slice(0,10)<=to)&&(!action||h.action===action)&&(!q||[h.task_id,h.title,h.assignee,h.action,h.field,h.old_value,h.new_value].join(" ").toLocaleLowerCase("de").includes(q)));$("#history-list").innerHTML=historyHTML(items)}catch(e){toast(e.message,true)}}
@@ -202,30 +228,32 @@ function timelineMarkerWidth(task){
   marker.remove();
   return width;
 }
+function dueAtDate(type,d){if(type==="exact")return {due_type:type,due_value:isoLocal(d)};if(type==="week"){const [y,w]=isoWeek(d);return {due_type:type,due_value:`${y}-W${String(w).padStart(2,"0")}`}}if(type==="month")return {due_type:type,due_value:isoLocal(d).slice(0,7)};if(type==="quarter")return {due_type:type,due_value:`${d.getFullYear()}-Q${Math.floor(d.getMonth()/3)+1}`};return {due_type:type,due_value:String(d.getFullYear())}}
+function moveDue(task,direction,large=false){const d=new Date(task.due_start+"T12:00:00");if(task.due_type==="exact")d.setDate(d.getDate()+direction*(large?7:1));else if(task.due_type==="week")d.setDate(d.getDate()+direction*7);else if(task.due_type==="month")d.setMonth(d.getMonth()+direction);else if(task.due_type==="quarter")d.setMonth(d.getMonth()+direction*3);else d.setFullYear(d.getFullYear()+direction);return dueAtDate(task.due_type,d)}
 function renderTimeline(){
-  const tasks=filteredTasks(false),dated=tasks.filter(t=>t.due_date),assignees=[...new Set(tasks.map(t=>t.assignee||"Ohne Bearbeiter"))].sort((a,b)=>a.localeCompare(b,"de"));
+  const tasks=filteredTasks(false),dated=tasks.filter(t=>t.due_type),assignees=[...new Set(tasks.map(t=>t.assignee||"Ohne Bearbeiter"))].sort((a,b)=>a.localeCompare(b,"de"));
   const px=DAY[state.settings.zoom]||18,start=new Date();start.setHours(12,0,0,0);start.setDate(start.getDate()-45);const days=500,width=140+days*px;
   let months="";const cursor=new Date(start);cursor.setDate(1);if(cursor<start)cursor.setMonth(cursor.getMonth()+1);while(dayOffset(isoLocal(cursor),start)<days){const left=140+dayOffset(isoLocal(cursor),start)*px,next=new Date(cursor);next.setMonth(next.getMonth()+1);months+=`<div class="tl-month" style="left:${left}px;width:${Math.max(1,(next-cursor)/86400000)*px}px">${cursor.toLocaleDateString("de-DE",{month:"long",year:"numeric"})}</div>`;cursor.setMonth(cursor.getMonth()+1)}
   let markerPositions={},rows="",rowOffset=0;
   for(const name of assignees){
-    const same=dated.filter(t=>(t.assignee||"Ohne Bearbeiter")===name).map(t=>({task:t,left:140+dayOffset(t.due_date,start)*px,width:timelineMarkerWidth(t)})).sort((a,b)=>a.left-b.left||a.task.id-b.task.id),laneEnds=[];
+    const same=dated.filter(t=>(t.assignee||"Ohne Bearbeiter")===name).map(t=>{const range=(dayOffset(t.due_end,start)-dayOffset(t.due_start,start)+1)*px;return {task:t,left:140+dayOffset(t.due_start,start)*px,width:t.due_type==="exact"?timelineMarkerWidth(t):Math.max(8,range)}}).sort((a,b)=>a.left-b.left||a.task.id-b.task.id),laneEnds=[];
     let markers="";
     for(const item of same){
       let lane=laneEnds.findIndex(end=>end+8<=item.left);if(lane<0)lane=laneEnds.length;laneEnds[lane]=item.left+item.width;
       const t=item.task,top=6+lane*32;markerPositions[t.id]={left:item.left,right:item.left+item.width,center:item.left+item.width/2,y:rowOffset+top+14};
-      markers+=`<button class="tl-marker ${t.completed?"done":""} ${!t.completed&&t.due_date<localDate()?"overdue":""}" draggable="true" data-id="${t.id}" style="left:${item.left}px;top:${top}px;width:${item.width}px;--color:${assigneeColor(t.assignee)}" title="${esc(t.title||"(ohne Titel)")} – ${dateLabel(t.due_date)}">${esc(t.title||"(ohne Titel)")}</button>`;
+      markers+=`<button class="tl-marker precision-${t.due_type} ${t.completed?"done":""} ${!t.completed&&t.due_end<localDate()?"overdue":""}" draggable="true" data-id="${t.id}" style="left:${item.left}px;top:${top}px;width:${item.width}px;--color:${assigneeColor(t.assignee)}" title="${esc(t.title||"(ohne Titel)")} – ${esc(t.due_display)}">${esc(t.title||"(ohne Titel)")}</button>`;
     }
     const rowHeight=Math.max(62,12+laneEnds.length*32);rows+=`<div class="tl-row" style="height:${rowHeight}px"><div class="tl-label">${esc(name)}</div>${markers}</div>`;rowOffset+=rowHeight;
   }
-  const todayX=140+dayOffset(localDate(),start)*px;let svg="";if(state.settings.showDependencies){for(const t of dated)for(const d of t.dependencies){const target=markerPositions[t.id],source=markerPositions[d];if(source&&target){const points=source.center<=target.center?{x1:source.right,x2:target.left}:{x1:source.left,x2:target.right};svg+=`<line x1="${points.x1}" y1="${source.y}" x2="${points.x2}" y2="${target.y}" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>`}}}
-  const undated=tasks.filter(t=>!t.due_date).map(t=>`<button data-id="${t.id}" class="undated-task">${esc(t.title||"(ohne Titel)")}</button>`).join("");
+  const todayX=140+dayOffset(localDate(),start)*px;let svg="";if(state.settings.showDependencies){for(const t of dated)for(const d of t.dependencies){const target=markerPositions[t.id],source=markerPositions[d.depends_on_task_id];if(source&&target){const points=source.center<=target.center?{x1:source.right,x2:target.left}:{x1:source.left,x2:target.right};svg+=`<line x1="${points.x1}" y1="${source.y}" x2="${points.x2}" y2="${target.y}" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"><title>${esc(depLabel(d))}</title></line>`}}}
+  const undated=tasks.filter(t=>!t.due_type).map(t=>{const rec=t.dependencies.filter(d=>d.recommended_start).map(recommendationLabel).join(", ");return `<button data-id="${t.id}" class="undated-task" title="${rec?`Empfohlen: ${esc(rec)}`:"Ohne Termin"}">${esc(t.title||"(ohne Titel)")}${rec?` <small>Empfohlen: ${esc(rec)}</small>`:""}</button>`}).join("");
   $("#timeline").innerHTML=`<div class="tl-canvas zoom-${state.settings.zoom}" style="width:${width}px"><div class="tl-months">${months}</div><div class="today-line" style="left:${todayX}px"></div>${rows}<svg class="dep-lines" width="${width}" height="${rowOffset}"><defs><marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#64748b"/></marker></defs>${svg}</svg><div class="undated"><strong>Ohne Termin</strong>${undated||"Keine Aufgaben"}</div></div>`;
   const scroller=$("#timeline");scroller.scrollLeft=state.settings.timelineScroll||Math.max(0,todayX-scroller.clientWidth/3);
   $$(".tl-marker").forEach(el=>{el.addEventListener("dragstart",e=>e.dataTransfer.setData("text/plain",el.dataset.id));el.addEventListener("click",()=>openEditor(+el.dataset.id));el.addEventListener("keydown",timelineKey)});$$(".undated-task").forEach(el=>el.onclick=()=>openEditor(+el.dataset.id));
-  scroller.ondragover=e=>e.preventDefault();scroller.ondrop=e=>{e.preventDefault();const id=+e.dataTransfer.getData("text/plain"),rect=scroller.getBoundingClientRect(),x=e.clientX-rect.left+scroller.scrollLeft-140,index=Math.round(x/px),d=new Date(start);d.setDate(d.getDate()+index);updateTask(id,{due_date:isoLocal(d)})};
+  scroller.ondragover=e=>e.preventDefault();scroller.ondrop=e=>{e.preventDefault();const id=+e.dataTransfer.getData("text/plain"),task=state.tasks.find(t=>t.id===id),rect=scroller.getBoundingClientRect(),x=e.clientX-rect.left+scroller.scrollLeft-140,index=Math.round(x/px),d=new Date(start);d.setDate(d.getDate()+index);if(task?.due_type)updateTask(id,dueAtDate(task.due_type,d))};
 }
 function assigneeColor(name){return state.lookups.assignees.find(a=>a.name===name)?.color||"#64748b"}
-function timelineKey(e){const markers=$$(".tl-marker"),i=markers.indexOf(e.currentTarget),id=+e.currentTarget.dataset.id,t=state.tasks.find(x=>x.id===id);if(e.key==="Enter")return openEditor(id);if(e.shiftKey&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){e.preventDefault();const d=new Date(t.due_date+"T12:00:00");d.setDate(d.getDate()+(e.key==="ArrowRight"?1:-1)*(e.ctrlKey?7:1));return updateTask(id,{due_date:isoLocal(d)})}if(e.key.startsWith("Arrow")){e.preventDefault();markers[Math.max(0,Math.min(markers.length-1,i+(e.key==="ArrowLeft"||e.key==="ArrowUp"?-1:1)))]?.focus()}}
+function timelineKey(e){const markers=$$(".tl-marker"),i=markers.indexOf(e.currentTarget),id=+e.currentTarget.dataset.id,t=state.tasks.find(x=>x.id===id);if(e.key==="Enter")return openEditor(id);if(e.shiftKey&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){e.preventDefault();return updateTask(id,moveDue(t,e.key==="ArrowRight"?1:-1,e.ctrlKey))}if(e.key.startsWith("Arrow")){e.preventDefault();markers[Math.max(0,Math.min(markers.length-1,i+(e.key==="ArrowLeft"||e.key==="ArrowUp"?-1:1)))]?.focus()}}
 
 function openOverlay(dialog,input){
   if(state.overlay===dialog)return;
@@ -246,7 +274,7 @@ function quickSuggestions(){
   const input=$("#quick-input"),before=input.value.slice(0,input.selectionStart),match=before.match(/(^|\s)([@#!%^])(?:"([^"]*)|([^\s"]*))$/);
   if(!match)return null;const prefix=match[2],query=match[3]??match[4]??"",start=match.index+match[1].length;
   let values=[];
-  if(prefix==="^")values=state.tasks.filter(t=>!t.deleted_at).map(t=>({value:String(t.id),label:`#${t.id} – ${t.title||"(ohne Titel)"} – ${t.assignee||"ohne Bearbeiter"} – ${dateLabel(t.due_date)||"ohne Termin"}`,search:`${t.id} ${t.title}`}));
+  if(prefix==="^")values=state.tasks.filter(t=>!t.deleted_at).map(t=>({value:String(t.id),label:`#${t.id} – ${t.title||"(ohne Titel)"} – ${t.assignee||"ohne Bearbeiter"} – ${t.due_display||"ohne Termin"}`,search:`${t.id} ${t.title}`}));
   else{const key={"@":"assignees","#":"tags","!":"projects","%":"categories"}[prefix];values=(state.lookups[key]||[]).map(x=>({value:x.name,label:`${prefix}${x.name}`,search:x.name}))}
   const ranked=values.map(x=>({...x,score:fuzzyRank(query,x.search)})).filter(x=>x.score>=0).sort((a,b)=>a.score-b.score||a.label.localeCompare(b.label,"de")).slice(0,8);
   return {prefix,start,end:input.selectionStart,items:ranked};
@@ -276,7 +304,7 @@ function paletteResults(query){
     const recent=state.settings.recentCommands||[];return commands.sort((a,b)=>{const ai=recent.indexOf(a.id),bi=recent.indexOf(b.id);return (ai<0?100+a.order:ai)-(bi<0?100+b.order:bi)});
   }
   const items=[...commands];
-  for(const t of state.tasks)items.push({type:"task",id:t.id,label:`Task #${t.id} – ${t.title||"(ohne Titel)"} – ${t.assignee||"ohne Bearbeiter"}${t.due_date?` – ${dateLabel(t.due_date)}`:""}`,search:`#${t.id} ${t.id} ${t.title} ${t.assignee||""} ${t.project||""} ${t.category||""} ${t.tags.join(" ")}`});
+  for(const t of state.tasks)items.push({type:"task",id:t.id,label:`Task #${t.id} – ${t.title||"(ohne Titel)"} – ${t.assignee||"ohne Bearbeiter"}${t.due_display?` – ${t.due_display}`:""}`,search:`#${t.id} ${t.id} ${t.title} ${t.assignee||""} ${t.project||""} ${t.category||""} ${t.tags.join(" ")}`});
   for(const [key,kind] of [["assignees","Bearbeiter"],["projects","Projekt"],["categories","Kategorie"],["tags","Tag"]])for(const value of state.lookups[key])items.push({type:"lookup",label:`${kind}: ${value.name}`,search:value.name});
   return rankSearchItems(query,items).slice(0,60);
 }
@@ -323,6 +351,6 @@ function bind(){
   document.addEventListener("keydown",e=>{const mod=e.ctrlKey||e.metaKey,typing=/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||e.target.isContentEditable,key=e.key.toLowerCase(),isN=key==="n"||e.code==="KeyN",isP=key==="p"||e.code==="KeyP",quick=(e.altKey&&!mod&&isN)||(e.ctrlKey&&(e.shiftKey||e.altKey)&&isN),palette=e.ctrlKey&&(e.shiftKey||e.altKey)&&isP;if(e.key==="Escape"&&$("#shortcuts").open)$("#shortcuts").close();if(e.key==="Escape"&&$("#editor").open)$("#editor").close();if(quick){e.preventDefault();openQuickAdd()}else if(palette){e.preventDefault();openPalette()}else if(mod&&e.key==="Enter"){e.preventDefault();createTask()}else if(mod&&key==="f"){e.preventDefault();$("#search").focus()}else if(mod&&e.key===" "&&!state.editing){e.preventDefault();toggleCurrent()}else if(mod&&(e.key==="Delete"||e.key==="Backspace")&&!state.editing&&!typing){e.preventDefault();deleteCurrent()}else if(e.key==="?"&&!typing)$("#shortcuts").showModal()});
   setInterval(()=>{if(state.settings.view==="table"&&state.settings.filters.status==="active")renderTable()},60000);
 }
-const TodoLogic={parseDate,parseQuickAdd,normalizeSearch,fuzzyRank,rankSearchItems,dayOffset,isoLocal,paletteResults};
+const TodoLogic={parseDate,parseDue,parseDependency,parseDependencies,parseQuickAdd,normalizeSearch,fuzzyRank,rankSearchItems,dayOffset,isoLocal,isoWeek,dueAtDate,moveDue,paletteResults};
 if(typeof module!=="undefined")module.exports=TodoLogic;
 if(typeof window!=="undefined"){window.TodoLogic=TodoLogic;bind();load()}

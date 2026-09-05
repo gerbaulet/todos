@@ -1,6 +1,6 @@
 "use strict";
 const assert=require("node:assert/strict");
-const {parseQuickAdd,normalizeSearch,fuzzyRank,rankSearchItems}=require("../static/app.js");
+const {parseDate,parseDue,parseDependency,parseQuickAdd,moveDue,normalizeSearch,fuzzyRank,rankSearchItems}=require("../static/app.js");
 const base=new Date(2026,8,4,12);
 const parse=input=>parseQuickAdd(input,base);
 
@@ -10,22 +10,45 @@ assert.deepEqual(parse("Angebot #Kunde #Wichtig").tags,["Kunde","Wichtig"]);
 assert.equal(parse("Angebot !Netz").project,"Netz");
 assert.equal(parse("Angebot %Vertrag").category,"Vertrag");
 assert.equal(parse("Dokument https://example.com").link,"https://example.com");
-assert.deepEqual(parse("Freigabe ^123").dependencies,[123]);
-assert.deepEqual(parse("Freigabe ^123 ^127").dependencies,[123,127]);
-assert.equal(parse("Termin +3").due_date,"2026-09-07");
-assert.equal(parse("Termin +1w").due_date,"2026-09-11");
-assert.equal(parse("Termin 15.10.").due_date,"2026-10-15");
+assert.deepEqual(parse("Freigabe ^123").dependencies,[{depends_on_task_id:123,offset_value:null,offset_unit:null}]);
+assert.deepEqual(parse("Freigabe ^123+2W ^127").dependencies,[{depends_on_task_id:123,offset_value:2,offset_unit:"week"},{depends_on_task_id:127,offset_value:null,offset_unit:null}]);
+assert.equal(parse("Termin +3").due_value,"2026-09-07");
+assert.equal(parse("Termin +1w").due_value,"2026-09-11");
+assert.equal(parse("Termin 15.10.").due_value,"2026-10-15");
 assert.deepEqual(parse("#Wichtig @Meier Angebot prüfen +3"),{
-  title:"Angebot prüfen",assignee:"Meier",due_date:"2026-09-07",tags:["Wichtig"],project:null,category:null,dependencies:[],link:null
+  title:"Angebot prüfen",assignee:"Meier",due_type:"exact",due_value:"2026-09-07",tags:["Wichtig"],project:null,category:null,dependencies:[],link:null
 });
 assert.deepEqual(parse('Rückmeldung @"Max Mustermann" !"Projekt Nord" %"Interne Abstimmung" #"Sehr wichtig"'),{
-  title:"Rückmeldung",assignee:"Max Mustermann",due_date:null,tags:["Sehr wichtig"],project:"Projekt Nord",category:"Interne Abstimmung",dependencies:[],link:null
+  title:"Rückmeldung",assignee:"Max Mustermann",due_type:null,due_value:null,tags:["Sehr wichtig"],project:"Projekt Nord",category:"Interne Abstimmung",dependencies:[],link:null
 });
 assert.equal(parse("Präsentation für Vorstand überarbeiten @Meier +3 #Vorstand").title,"Präsentation für Vorstand überarbeiten");
 assert.throws(()=>parse("@Meier #Tag"),/Aufgabentitel/);
 assert.throws(()=>parse("Titel https://a.example https://b.example"),/einen Link/);
 assert.throws(()=>parse('Titel @"Max Mustermann'),/nicht geschlossen/);
 assert.throws(()=>parse("Termin +falsch"),/Datum nicht erkannt/);
+
+assert.deepEqual(parseDue("15.09.2027",base),{due_type:"exact",due_value:"2027-09-15"});
+assert.deepEqual(parseDue("15.9.27",base),{due_type:"exact",due_value:"2027-09-15"});
+assert.deepEqual(parseDue("KW 33",new Date(2026,0,2,12)),{due_type:"week",due_value:"2026-W33"});
+assert.deepEqual(parseDue("KW33",new Date(2026,11,15,12)),{due_type:"week",due_value:"2027-W33"});
+assert.deepEqual(parseDue("KW 33 2027",base),{due_type:"week",due_value:"2027-W33"});
+assert.deepEqual(parseDue("KW33/2027",base),{due_type:"week",due_value:"2027-W33"});
+assert.deepEqual(parseDue("September 2027",base),{due_type:"month",due_value:"2027-09"});
+assert.deepEqual(parseDue("Sep 2027",base),{due_type:"month",due_value:"2027-09"});
+assert.deepEqual(parseDue("09/2027",base),{due_type:"month",due_value:"2027-09"});
+assert.deepEqual(parseDue("Q2 2027",base),{due_type:"quarter",due_value:"2027-Q2"});
+assert.deepEqual(parseDue("Q2/2027",base),{due_type:"quarter",due_value:"2027-Q2"});
+assert.deepEqual(parseDue("2027",base),{due_type:"year",due_value:"2027"});
+assert.equal(parseDate("morgen",base),"2026-09-05");
+assert.deepEqual(parse("Abnahme vorbereiten @Müller Q2 2027 ^123+2w"),{
+  title:"Abnahme vorbereiten",assignee:"Müller",due_type:"quarter",due_value:"2027-Q2",tags:[],project:null,category:null,
+  dependencies:[{depends_on_task_id:123,offset_value:2,offset_unit:"week"}],link:null
+});
+assert.deepEqual(parseDependency("#123 +1M"),{depends_on_task_id:123,offset_value:1,offset_unit:"month"});
+assert.deepEqual(moveDue({due_type:"week",due_start:"2027-08-16"},1),{due_type:"week",due_value:"2027-W34"});
+assert.deepEqual(moveDue({due_type:"month",due_start:"2027-09-01"},1),{due_type:"month",due_value:"2027-10"});
+assert.deepEqual(moveDue({due_type:"quarter",due_start:"2027-04-01"},1),{due_type:"quarter",due_value:"2027-Q3"});
+assert.deepEqual(moveDue({due_type:"year",due_start:"2027-01-01"},1),{due_type:"year",due_value:"2028"});
 
 assert.equal(normalizeSearch("Müllerstraße"),"mullerstrasse");
 assert.ok(fuzzyRank("hist","Historie öffnen")<fuzzyRank("hist","Globale Historie"));

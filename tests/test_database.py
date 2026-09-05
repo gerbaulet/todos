@@ -2,9 +2,10 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from datetime import date
 from unittest.mock import patch
 
-from database import Database
+from database import Database, due_end, due_start, format_due, shifted_due_range
 
 
 class DatabaseTests(unittest.TestCase):
@@ -76,7 +77,7 @@ class DatabaseTests(unittest.TestCase):
 
         self.assertEqual([task["id"] for task in tasks], [one["id"], two["id"]])
         self.assertEqual(tasks[0]["tags"], ["alpha", "Beta"])
-        self.assertEqual(tasks[1]["dependencies"], [one["id"]])
+        self.assertEqual([x["depends_on_task_id"] for x in tasks[1]["dependencies"]], [one["id"]])
         selects = [sql for sql in statements if sql.lstrip().upper().startswith("SELECT")]
         self.assertEqual(len(selects), 3)
 
@@ -86,7 +87,7 @@ class DatabaseTests(unittest.TestCase):
         three = self.db.create_task({"title": "Drei"})
         self.db.update_task(two["id"], {"dependencies": [one["id"]]})
         self.db.update_task(three["id"], {"dependencies": [one["id"], two["id"]]})
-        self.assertEqual(self.db.get_task(three["id"])["dependencies"], [1, 2])
+        self.assertEqual([x["depends_on_task_id"] for x in self.db.get_task(three["id"])["dependencies"]], [1, 2])
         with self.assertRaisesRegex(ValueError, "selbst"):
             self.db.update_task(one["id"], {"dependencies": [one["id"]]})
         with self.assertRaisesRegex(ValueError, "Zyklus"):
@@ -94,6 +95,86 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Zyklus"):
             self.db.update_task(one["id"], {"dependencies": [three["id"]]})
         self.assertEqual(self.db.get_task(one["id"])["dependencies"], [])
+
+    def test_due_ranges_and_formatting(self):
+        cases = [
+            ("exact", "2027-09-15", "2027-09-15", "2027-09-15", "15.09.2027"),
+            ("week", "2027-W33", "2027-08-16", "2027-08-22", "KW 33 / 2027"),
+            ("month", "2027-09", "2027-09-01", "2027-09-30", "September 2027"),
+            ("quarter", "2027-Q2", "2027-04-01", "2027-06-30", "Q2 2027"),
+            ("year", "2027", "2027-01-01", "2027-12-31", "2027"),
+            ("month", "2028-02", "2028-02-01", "2028-02-29", "Februar 2028"),
+            ("week", "2020-W53", "2020-12-28", "2021-01-03", "KW 53 / 2020"),
+        ]
+        for kind, value, start, end, label in cases:
+            with self.subTest(value=value):
+                self.assertEqual(due_start(kind, value).isoformat(), start)
+                self.assertEqual(due_end(kind, value).isoformat(), end)
+                self.assertEqual(format_due(kind, value), label)
+
+    def test_shifted_due_ranges_keep_the_original_precision_window(self):
+        cases = [
+            ("exact", "2027-09-15", 3, "day", "2027-09-18", "2027-09-18"),
+            ("exact", "2027-09-15", 2, "week", "2027-09-29", "2027-09-29"),
+            ("week", "2027-W33", 1, "week", "2027-08-23", "2027-08-29"),
+            ("month", "2026-09", 2, "week", "2026-09-15", "2026-10-14"),
+            ("month", "2027-01", 1, "month", "2027-02-01", "2027-02-28"),
+            ("quarter", "2027-Q2", 1, "month", "2027-05-01", "2027-07-31"),
+            ("year", "2027", 1, "year", "2028-01-01", "2028-12-31"),
+        ]
+        for kind, value, offset, unit, start, end in cases:
+            with self.subTest(value=value, unit=unit):
+                actual = shifted_due_range(kind, value, offset, unit)
+                self.assertEqual(tuple(x.isoformat() for x in actual), (start, end))
+
+    def test_dependency_offsets_recommendations_and_history_are_separate(self):
+        predecessor = self.db.create_task({"title": "Vorgänger", "due_type": "month", "due_value": "2026-09"})
+        child = self.db.create_task({"title": "Kind"})
+        child = self.db.update_task(child["id"], {"dependencies": [{"depends_on_task_id": predecessor["id"], "offset_value": 2, "offset_unit": "week"}]})
+        self.assertIsNone(child["due_type"])
+        self.assertEqual(child["dependencies"][0]["recommended_start"], "2026-09-15")
+        self.assertEqual(child["dependencies"][0]["recommended_end"], "2026-10-14")
+        with self.db.read() as raw:
+            columns = {row["name"] for row in raw.execute("PRAGMA table_info(dependencies)")}
+            stored = dict(raw.execute("SELECT * FROM dependencies WHERE task_id=?", (child["id"],)).fetchone())
+        self.assertNotIn("recommended_start", columns)
+        self.assertEqual((stored["offset_value"], stored["offset_unit"]), (2, "week"))
+        before = {key: child[key] for key in ("due_type", "due_value", "updated_at")}
+        child_history_count = len(self.db.history(child["id"]))
+        self.db.update_task(predecessor["id"], {"due_type": "month", "due_value": "2026-10"})
+        changed = self.db.get_task(child["id"])
+        self.assertEqual({key: changed[key] for key in before}, before)
+        self.assertEqual(len(self.db.history(child["id"])), child_history_count)
+        self.assertEqual(changed["dependencies"][0]["recommended_start"], "2026-10-15")
+        self.assertEqual(changed["dependencies"][0]["recommended_end"], "2026-11-14")
+
+    def test_due_and_dependency_changes_are_historized(self):
+        predecessor = self.db.create_task({"due_type": "year", "due_value": "2027"})
+        child = self.db.create_task({"due_type": "month", "due_value": "2027-09"})
+        self.db.update_task(child["id"], {"dependencies": [{"depends_on_task_id": predecessor["id"], "offset_value": 1, "offset_unit": "year"}]})
+        self.db.update_task(child["id"], {"dependencies": [{"depends_on_task_id": predecessor["id"], "offset_value": 2, "offset_unit": "year"}]})
+        self.db.update_task(child["id"], {"dependencies": []})
+        self.db.update_task(child["id"], {"due_type": "quarter", "due_value": "2027-Q4"})
+        fields = [item["field"] for item in self.db.history(child["id"])]
+        self.assertEqual(fields.count("dependencies"), 3)
+        self.assertIn("due", fields)
+
+    def test_legacy_schema_migrates_dates_and_dependencies(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite"); os.close(fd)
+        try:
+            raw = sqlite3.connect(path)
+            raw.executescript("""CREATE TABLE tasks(id INTEGER PRIMARY KEY,title TEXT NOT NULL DEFAULT '',assignee_id INTEGER,due_date TEXT,completed INTEGER NOT NULL DEFAULT 0,completed_at TEXT,project_id INTEGER,category_id INTEGER,link TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT);
+                CREATE TABLE dependencies(task_id INTEGER NOT NULL,depends_on_id INTEGER NOT NULL,PRIMARY KEY(task_id,depends_on_id));
+                INSERT INTO tasks VALUES(1,'Alt',NULL,'2027-09-15',0,NULL,NULL,NULL,'','x','x',NULL);
+                INSERT INTO tasks VALUES(2,'Kind',NULL,NULL,0,NULL,NULL,NULL,'','x','x',NULL);
+                INSERT INTO dependencies VALUES(2,1);""")
+            raw.commit(); raw.close()
+            migrated = Database(path)
+            self.assertEqual((migrated.get_task(1)["due_type"], migrated.get_task(1)["due_value"]), ("exact", "2027-09-15"))
+            dependency = migrated.get_task(2)["dependencies"][0]
+            self.assertEqual((dependency["depends_on_task_id"], dependency["offset_value"]), (1, None))
+        finally:
+            os.unlink(path)
 
     def test_backup_contains_all_data(self):
         task = self.db.create_task({"title": "Gesichert", "tags": ["Backup"]})
