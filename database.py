@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   project_id INTEGER REFERENCES projects(id),
   category_id INTEGER REFERENCES categories(id),
   link TEXT NOT NULL DEFAULT '',
+  is_milestone INTEGER NOT NULL DEFAULT 0 CHECK(is_milestone IN (0,1)),
+  notes TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   deleted_at TEXT
@@ -63,7 +65,7 @@ CREATE INDEX IF NOT EXISTS tasks_due ON tasks(due_date);
 """
 
 COLORS = ["#2563eb", "#dc2626", "#059669", "#7c3aed", "#d97706", "#0891b2", "#be185d", "#4d7c0f"]
-FIELDS = {"title", "assignee", "due_date", "due_type", "due_value", "completed", "project", "category", "link", "tags", "dependencies"}
+FIELDS = {"title", "assignee", "due_date", "due_type", "due_value", "completed", "project", "category", "link", "tags", "dependencies", "is_milestone", "notes"}
 DEFAULT_DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "todo.sqlite")
 
 
@@ -165,6 +167,10 @@ class Database:
             db.execute("ALTER TABLE tasks ADD COLUMN due_type TEXT")
         if "due_value" not in task_columns:
             db.execute("ALTER TABLE tasks ADD COLUMN due_value TEXT")
+        if "is_milestone" not in task_columns:
+            db.execute("ALTER TABLE tasks ADD COLUMN is_milestone INTEGER NOT NULL DEFAULT 0")
+        if "notes" not in task_columns:
+            db.execute("ALTER TABLE tasks ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
         db.execute("UPDATE tasks SET due_type='exact',due_value=due_date WHERE due_date IS NOT NULL AND due_type IS NULL")
         dep_columns = {row["name"] for row in db.execute("PRAGMA table_info(dependencies)")}
         if "depends_on_task_id" not in dep_columns:
@@ -279,11 +285,15 @@ class Database:
             category_id = self._lookup(db, "categories", data.get("category"))
             completed = int(bool(data.get("completed", False)))
             due_type, due_value = self._due_from_data(data)
+            is_milestone = bool(data.get("is_milestone", False))
+            if is_milestone and not due_type:
+                raise ValueError("Ein Meilenstein muss einen eigenen Termin haben.")
             cur = db.execute(
-                """INSERT INTO tasks(title,assignee_id,due_date,due_type,due_value,completed,completed_at,project_id,category_id,link,created_at,updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                """INSERT INTO tasks(title,assignee_id,due_date,due_type,due_value,completed,completed_at,project_id,category_id,link,is_milestone,notes,created_at,updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 ((data.get("title") or "").strip(), assignee_id, due_value if due_type == "exact" else None, due_type, due_value, completed,
-                 stamp if completed else None, project_id, category_id, (data.get("link") or "").strip(), stamp, stamp),
+                 stamp if completed else None, project_id, category_id, (data.get("link") or "").strip(), int(is_milestone),
+                 str(data.get("notes") or ""), stamp, stamp),
             )
             task_id = cur.lastrowid
             self._set_tags(db, task_id, data.get("tags", []))
@@ -300,6 +310,7 @@ class Database:
             raise KeyError("Task nicht gefunden.")
         result = dict(row)
         result["completed"] = bool(result["completed"])
+        result["is_milestone"] = bool(result["is_milestone"])
         result["due_date"] = result["due_value"] if result["due_type"] == "exact" else None
         result["due_start"] = due_start(result["due_type"], result["due_value"]).isoformat() if result["due_type"] else None
         result["due_end"] = due_end(result["due_type"], result["due_value"]).isoformat() if result["due_type"] else None
@@ -328,6 +339,7 @@ class Database:
             for row in rows:
                 task = dict(row)
                 task["completed"] = bool(task["completed"])
+                task["is_milestone"] = bool(task["is_milestone"])
                 task["due_date"] = task["due_value"] if task["due_type"] == "exact" else None
                 task["due_start"] = due_start(task["due_type"], task["due_value"]).isoformat() if task["due_type"] else None
                 task["due_end"] = due_end(task["due_type"], task["due_value"]).isoformat() if task["due_type"] else None
@@ -433,6 +445,8 @@ class Database:
             for field in ("title", "link"):
                 if field in changes:
                     scalar[field] = (changes[field] or "").strip()
+            if "notes" in changes:
+                scalar["notes"] = str(changes["notes"] or "")
             if {"due_date", "due_type", "due_value"} & set(changes):
                 due_type, due_value = self._due_from_data(changes, old)
                 scalar.update(due_type=due_type, due_value=due_value, due_date=due_value if due_type == "exact" else None)
@@ -443,6 +457,12 @@ class Database:
                 value = bool(changes["completed"])
                 scalar["completed"] = int(value)
                 scalar["completed_at"] = now() if value and not old["completed"] else (old["completed_at"] if value else None)
+            if "is_milestone" in changes:
+                scalar["is_milestone"] = int(bool(changes["is_milestone"]))
+            final_due_type = scalar.get("due_type", old["due_type"])
+            final_is_milestone = bool(scalar.get("is_milestone", old["is_milestone"]))
+            if final_is_milestone and not final_due_type:
+                raise ValueError("Ein Meilenstein muss einen eigenen Termin haben.")
             if changes:
                 scalar["updated_at"] = now()
             if scalar:

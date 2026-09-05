@@ -3,11 +3,11 @@ const $=s=>document.querySelector(s), $$=(s,root=document)=>[...root.querySelect
 const columns=[
   ["id","ID",false],["title","Was ist zu tun",true],["assignee","Wer",true],["due_date","Bis wann",true],
   ["completed","Erledigt",true],["dependencies","Abhängigkeiten",true],["project","Projekt",true],
-  ["category","Kategorie",true],["tags","Tags",true],["link","Link",true]
+  ["category","Kategorie",true],["tags","Tags",true],["notes","Notiz",true],["link","Link",true]
 ];
-const optional=["project","category","tags","link"];
-const filterControls={search:["search","tl-search"],status:["status","tl-status"],assignee:["f-assignee","tl-assignee"],project:["f-project","tl-project"],category:["f-category","tl-category"],tag:["f-tag","tl-tag"],due:["f-due"]};
-const defaults={view:"table",sort:{field:"due_date",dir:1},visibleColumns:[],filters:{status:"active"},zoom:"month",showDependencies:false,timelineScroll:0,recentCommands:[]};
+const optional=["project","category","tags","notes","link"];
+const filterControls={search:["search","tl-search"],status:["status","tl-status"],type:["f-type","tl-type"],assignee:["f-assignee","tl-assignee"],project:["f-project","tl-project"],category:["f-category","tl-category"],tag:["f-tag","tl-tag"],due:["f-due"]};
+const defaults={view:"table",sort:{field:"due_date",dir:1},visibleColumns:["notes"],filters:{status:"active"},zoom:"month",showDependencies:false,timelineScroll:0,recentCommands:[]};
 const state={tasks:[],lookups:{assignees:[],projects:[],categories:[],tags:[]},settings:{...defaults},selected:null,editing:null,saveTimer:null,pendingSettings:{},overlay:null,overlayReturnFocus:null,quickIndex:0,paletteIndex:0,paletteItems:[]};
 
 async function api(path,options={}){
@@ -54,7 +54,9 @@ function parseDependency(value){const m=String(value).trim().match(/^[#^]?(\d+)\
 function parseDependencies(value){return String(value||"").split(",").map(x=>x.trim()).filter(Boolean).map(parseDependency)}
 function parseQuickAdd(input,base=new Date()){
   if((String(input||"").match(/"/g)||[]).length%2)throw Error("Anführungszeichen sind nicht geschlossen.");
-  const result={title:"",assignee:null,due_type:null,due_value:null,tags:[],project:null,category:null,dependencies:[],link:null},title=[];
+  const milestone=/^\s*\*/.test(String(input||""));
+  input=milestone?String(input||"").replace(/^\s*\*\s*/,""):input;
+  const result={title:"",assignee:null,due_type:null,due_value:null,tags:[],project:null,category:null,dependencies:[],link:null,is_milestone:milestone},title=[];
   const single={"@":"assignee","!":"project","%":"category"};
   const tokens=quickTokens(input);
   for(let i=0;i<tokens.length;i++){
@@ -78,6 +80,7 @@ function parseQuickAdd(input,base=new Date()){
   }
   result.title=title.join(" ").trim();result.tags=[...new Set(result.tags)];result.dependencies=[...new Map(result.dependencies.map(x=>[x.depends_on_task_id,x])).values()];
   if(!result.title)throw Error("Bitte einen Aufgabentitel eingeben.");
+  if(result.is_milestone&&!result.due_type)throw Error("Ein Meilenstein muss einen eigenen Termin haben.");
   return result;
 }
 function normalizeSearch(value){return String(value??"").toLocaleLowerCase("de").replace(/ß/g,"ss").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ")}
@@ -97,7 +100,9 @@ function saveSettings(change){Object.assign(state.settings,change);Object.assign
 async function load(){
   try{
     const [tasks,lookups,settings]=await Promise.all([api("/api/tasks"),api("/api/lookups"),api("/api/settings")]);
-    state.tasks=tasks;state.lookups=lookups;state.settings={...defaults,...settings,filters:{...defaults.filters,...settings.filters}};
+    const visible=settings.notesColumnInitialized?[...(settings.visibleColumns||[])]:[...new Set([...(settings.visibleColumns||[]),"notes"])];
+    state.tasks=tasks;state.lookups=lookups;state.settings={...defaults,...settings,visibleColumns:visible,filters:{...defaults.filters,...settings.filters}};
+    if(!settings.notesColumnInitialized)saveSettings({visibleColumns:visible,notesColumnInitialized:true});
     buildControls(); applySettings(); render();
   }catch(e){toast(e.message,true)}
 }
@@ -130,9 +135,10 @@ function filteredTasks(includeDue=true){
     if(state.settings.view==="completed")return t.completed;
     if(f.status==="open"&&t.completed)return false;if(f.status==="completed"&&!t.completed)return false;
     if(f.status==="active"&&t.completed&&now-parseUTC(t.completed_at)>30*60000)return false;
+    if(f.type==="tasks"&&t.is_milestone||f.type==="milestones"&&!t.is_milestone)return false;
     if(f.assignee&&t.assignee!==f.assignee||f.project&&t.project!==f.project||f.category&&t.category!==f.category||f.tag&&!t.tags.includes(f.tag))return false;
     if(includeDue){if(f.due==="overdue"&&(!t.due_end||t.due_end>=today||t.completed))return false;if(f.due==="today"&&(!t.due_start||t.due_start>today||t.due_end<today))return false;if(f.due==="week"&&(!t.due_start||t.due_end<today||t.due_start>week))return false;if(f.due==="none"&&t.due_type)return false}
-    const q=(f.search||"").toLocaleLowerCase("de");return !q||[t.title,t.assignee,t.project,t.category,t.link,...t.tags].join(" ").toLocaleLowerCase("de").includes(q);
+    const q=(f.search||"").toLocaleLowerCase("de");return !q||[t.title,t.notes,t.assignee,t.project,t.category,t.link,...t.tags].join(" ").toLocaleLowerCase("de").includes(q);
   });
   if(state.settings.view==="completed")return data.sort((a,b)=>(b.completed_at||"").localeCompare(a.completed_at||""));
   const {field,dir}=state.settings.sort||defaults.sort;
@@ -159,7 +165,8 @@ function renderTable(){
   body.innerHTML=data.map(t=>`<tr data-id="${t.id}" class="${t.completed?"completed-row":""}">${cols.map(c=>{
     const color=c[0]==="assignee"?(state.lookups.assignees.find(a=>a.name===t.assignee)?.color):null;
     const due=c[0]==="due_date",recommendations=due?t.dependencies.filter(d=>d.recommended_start):[],warning=recommendations.some(d=>d.deviates);
-    const content=due?`${t.due_display?`<span>${esc(t.due_display)}</span>`:""}${recommendations.length?`<small class="recommendation ${warning?"deviation":""}">${warning?"⚠ ":""}${esc(recommendations.map(recommendationLabel).join(", "))}</small>`:""}`:`${color?`<span class="color-dot" style="background:${color}"></span>`:""}${esc(display(t,c[0]))}`;
+    const title=c[0]==="title",notes=c[0]==="notes";
+    const content=due?`${t.due_display?`<span>${esc(t.due_display)}</span>`:""}${recommendations.length?`<small class="recommendation ${warning?"deviation":""}">${warning?"⚠ ":""}${esc(recommendations.map(recommendationLabel).join(", "))}</small>`:""}`:notes?`<span class="notes-preview">${esc(t.notes)}</span>`:`${title&&t.is_milestone?'<span class="milestone-symbol" aria-label="Meilenstein">◆</span> ':""}${color?`<span class="color-dot" style="background:${color}"></span>`:""}${esc(display(t,c[0]))}`;
     return `<td tabindex="${c[2]?0:-1}" data-field="${c[0]}" title="${esc(due?dueDetails(t):display(t,c[0]))}" class="${due&&!t.completed&&t.due_end&&t.due_end<localDate()?"overdue":""}">${content}</td>`}).join("")}${state.settings.view==="trash"?`<td><button class="restore" data-restore="${t.id}">Wiederherstellen</button></td>`:""}</tr>`).join("")||'<tr><td class="empty" colspan="10">Keine Aufgaben in dieser Ansicht.</td></tr>';
   if(state.selected){const cell=$(`tr[data-id="${state.selected.id}"] td[data-field="${state.selected.field}"]`);if(cell)cell.classList.add("cell-selected")}
 }
@@ -170,11 +177,11 @@ function replaceTask(task){const i=state.tasks.findIndex(t=>t.id===task.id);if(i
 async function refreshLookups(){state.lookups=await api("/api/lookups");fillLookups()}
 async function createTask(focus=true){try{const t=await api("/api/tasks",{method:"POST",body:"{}"});state.tasks.push(t);state.settings.view="table";state.selected={id:t.id,field:"title"};await refreshLookups();render();if(focus){const cell=$(`tr[data-id="${t.id}"] td[data-field=title]`);cell?.scrollIntoView({block:"nearest"});editCell(cell)}}catch(e){toast(e.message,true)}}
 function selectCell(cell,focus=true){if(!cell||!cell.dataset.field)return;$(".cell-selected")?.classList.remove("cell-selected");cell.classList.add("cell-selected");const id=+cell.closest("tr").dataset.id;state.selected={id,field:cell.dataset.field};if(focus)cell.focus()}
-function editCell(cell){
-  if(!cell||state.editing||!["title","assignee","due_date","project","category","tags","link","dependencies"].includes(cell.dataset.field))return;
+function editCell(cell,cursor=null){
+  if(!cell||state.editing||!["title","assignee","due_date","project","category","tags","notes","link","dependencies"].includes(cell.dataset.field))return;
   selectCell(cell,false);const t=state.tasks.find(x=>x.id===state.selected.id),field=cell.dataset.field,old=display(t,field);cell.textContent="";
-  const input=document.createElement("input");input.value=old;if({assignee:1,project:1,category:1,tags:1}[field])input.setAttribute("list",field==="assignee"?"assignees":field+"s");if(field==="dependencies")input.setAttribute("list","task-options");
-  cell.append(input);state.editing={cell,input,old,field,id:t.id};input.focus();input.setSelectionRange(input.value.length,input.value.length);
+  const input=document.createElement(field==="notes"?"textarea":"input");input.value=old;if({assignee:1,project:1,category:1,tags:1}[field])input.setAttribute("list",field==="assignee"?"assignees":field+"s");if(field==="dependencies")input.setAttribute("list","task-options");
+  cell.append(input);state.editing={cell,input,old,field,id:t.id};input.focus();const position=cursor==null?input.value.length:Math.min(cursor,input.value.length);input.setSelectionRange(position,position);
   input.addEventListener("keydown",editKey);input.addEventListener("blur",()=>commitEdit("stay"),{once:true});
 }
 function valueFor(field,value){if(field==="due_date"){const x=parseDue(value);if(x===undefined)throw Error("Termin nicht erkannt.");return x||{due_type:null,due_value:null}}if(field==="tags")return value.split(",").map(x=>x.trim()).filter(Boolean);if(field==="dependencies")return parseDependencies(value);return value}
@@ -183,7 +190,7 @@ async function commitEdit(move){
   try{const value=valueFor(e.field,val);await updateTask(e.id,e.field==="due_date"?value:{[e.field]:value});if(move==="down")moveCell(1,0,true);if(move==="next")moveCell(0,1,true);if(move==="prev")moveCell(0,-1,true)}catch{render()}
 }
 function cancelEdit(){const e=state.editing;if(!e)return;state.editing=null;render();setTimeout(()=>{const c=$(`tr[data-id="${e.id}"] td[data-field="${e.field}"]`);selectCell(c)},0)}
-function editKey(ev){if(["Escape","Enter","Tab"].includes(ev.key))ev.stopPropagation();if(ev.key==="Escape"){ev.preventDefault();cancelEdit()}else if(ev.key==="Enter"&&(ev.ctrlKey||ev.metaKey)){ev.preventDefault();commitEdit("stay").then(()=>createTask())}else if(ev.key==="Enter"){ev.preventDefault();commitEdit("down")}else if(ev.key==="Tab"){ev.preventDefault();commitEdit(ev.shiftKey?"prev":"next")}}
+function editKey(ev){if(["Escape","Enter","Tab"].includes(ev.key))ev.stopPropagation();if(ev.key==="Escape"){ev.preventDefault();cancelEdit()}else if(ev.key==="Enter"&&state.editing?.field==="notes"&&ev.shiftKey){return}else if(ev.key==="Enter"&&(ev.ctrlKey||ev.metaKey)){ev.preventDefault();commitEdit("stay").then(()=>createTask())}else if(ev.key==="Enter"){ev.preventDefault();commitEdit("down")}else if(ev.key==="Tab"){ev.preventDefault();commitEdit(ev.shiftKey?"prev":"next")}}
 function moveCell(rows,cols,edit=false){
   if(!state.selected)return;const cells=$$("#tasks tbody td[tabindex='0']"),cur=cells.findIndex(c=>+c.closest("tr").dataset.id===state.selected.id&&c.dataset.field===state.selected.field);if(cur<0)return;
   const current=cells[cur],tr=current.closest("tr"),rowCells=$$("td[tabindex='0']",tr),ci=rowCells.indexOf(current),rowsEls=$$("#tasks tbody tr[data-id]");let ri=rowsEls.indexOf(tr)+rows,ni=ci+cols;
@@ -207,15 +214,16 @@ async function restoreTask(id){try{replaceTask(await api(`/api/tasks/${id}/resto
 
 async function openEditor(id){
   const t=state.tasks.find(x=>x.id===id);if(!t)return;const form=$("#edit-form");$("#edit-id").textContent="#"+id;form.dataset.id=id;
-  for(const f of ["title","assignee","due_date","project","category","link"])form.elements[f].value=f==="due_date"?(t.due_display||""):t[f]||"";
+  for(const f of ["title","assignee","due_date","project","category","link","notes"])form.elements[f].value=f==="due_date"?(t.due_display||""):t[f]||"";
   form.elements.assignee_color.value=assigneeColor(t.assignee);
-  form.elements.tags.value=t.tags.join(", ");form.elements.dependencies.value=t.dependencies.map(depLabel).join(", ");form.elements.completed.checked=t.completed;
+  form.elements.tags.value=t.tags.join(", ");form.elements.dependencies.value=t.dependencies.map(depLabel).join(", ");form.elements.completed.checked=t.completed;form.elements.is_milestone.checked=t.is_milestone;
   try{const h=await api(`/api/tasks/${id}/history`);$("#task-history").innerHTML=historyHTML(h)}catch(e){toast(e.message,true)}
   $("#editor").showModal();form.elements.title.focus();form.elements.title.setSelectionRange(form.elements.title.value.length,form.elements.title.value.length)
 }
-async function saveEditor(ev){ev.preventDefault();const form=$("#edit-form"),id=+form.dataset.id,data=Object.fromEntries(new FormData(form)),color=data.assignee_color;delete data.assignee_color;data.completed=form.elements.completed.checked;data.tags=form.elements.tags.value.split(",");try{data.dependencies=parseDependencies(form.elements.dependencies.value)}catch(e){return toast(e.message,true)}const due=parseDue(data.due_date);delete data.due_date;if(due===undefined)return toast("Termin nicht erkannt.",true);Object.assign(data,due||{due_type:null,due_value:null});try{const task=await updateTask(id,data),person=state.lookups.assignees.find(x=>x.name===task.assignee);if(person&&person.color!==color){await api(`/api/assignees/${person.id}`,{method:"PATCH",body:JSON.stringify({color})});await refreshLookups();render()}$("#editor").close()}catch(e){toast(e.message,true)}}
-function historyHTML(items){return items.map(h=>`<div class="history-item"><time>${esc(new Date(h.timestamp).toLocaleString("de-DE"))}</time><span>#${h.task_id}</span><span>${esc(historyText(h))}</span></div>`).join("")||'<p class="empty">Keine Einträge.</p>'}
-function historyText(h){if(h.action==="created")return `Task erstellt: ${h.title||""}`;if(h.action==="deleted")return "Task gelöscht";if(h.action==="restored")return "Task wiederhergestellt";if(h.action==="completed")return "Als erledigt markiert";if(h.action==="reopened")return "Wieder geöffnet";return `${h.field}: ${h.old_value??"–"} → ${h.new_value??"–"}`}
+async function saveEditor(ev){ev.preventDefault();const form=$("#edit-form"),id=+form.dataset.id,data=Object.fromEntries(new FormData(form)),color=data.assignee_color;delete data.assignee_color;data.completed=form.elements.completed.checked;data.is_milestone=form.elements.is_milestone.checked;data.tags=form.elements.tags.value.split(",");try{data.dependencies=parseDependencies(form.elements.dependencies.value)}catch(e){return toast(e.message,true)}const due=parseDue(data.due_date);delete data.due_date;if(due===undefined)return toast("Termin nicht erkannt.",true);Object.assign(data,due||{due_type:null,due_value:null});try{const task=await updateTask(id,data),person=state.lookups.assignees.find(x=>x.name===task.assignee);if(person&&person.color!==color){await api(`/api/assignees/${person.id}`,{method:"PATCH",body:JSON.stringify({color})});await refreshLookups();render()}$("#editor").close()}catch(e){toast(e.message,true)}}
+function compactValue(value){const text=String(value??"–").replace(/\s+/g," ");return text.length>80?text.slice(0,79)+"…":text}
+function historyHTML(items){return items.map(h=>{const full=historyText(h,false),short=historyText(h,true);return `<div class="history-item"><time>${esc(new Date(h.timestamp).toLocaleString("de-DE"))}</time><span>#${h.task_id}</span><span title="${esc(full)}">${esc(short)}</span></div>`}).join("")||'<p class="empty">Keine Einträge.</p>'}
+function historyText(h,compact=false){if(h.action==="created")return `Task erstellt: ${h.title||""}`;if(h.action==="deleted")return "Task gelöscht";if(h.action==="restored")return "Task wiederhergestellt";if(h.action==="completed")return "Als erledigt markiert";if(h.action==="reopened")return "Wieder geöffnet";const field=h.field==="notes"?"Notiz":h.field==="is_milestone"?"Meilenstein":h.field,old=h.field==="is_milestone"?(h.old_value==="True"?"Ja":"Nein"):h.old_value,newValue=h.field==="is_milestone"?(h.new_value==="True"?"Ja":"Nein"):h.new_value;return `${field}: ${compact?compactValue(old):old??"–"} → ${compact?compactValue(newValue):newValue??"–"}`}
 async function renderHistory(){try{const q=$("#h-search").value.toLocaleLowerCase("de"),from=$("#h-from").value,to=$("#h-to").value,action=$("#h-action").value;let items=await api("/api/history");items=items.filter(h=>(!from||h.timestamp.slice(0,10)>=from)&&(!to||h.timestamp.slice(0,10)<=to)&&(!action||h.action===action)&&(!q||[h.task_id,h.title,h.assignee,h.action,h.field,h.old_value,h.new_value].join(" ").toLocaleLowerCase("de").includes(q)));$("#history-list").innerHTML=historyHTML(items)}catch(e){toast(e.message,true)}}
 
 const DAY={week:48,month:18,quarter:8,year:3};
@@ -244,7 +252,7 @@ function renderTimeline(){
     for(const item of same){
       let lane=laneEnds.findIndex(end=>end+8<=item.left);if(lane<0)lane=laneEnds.length;laneEnds[lane]=item.left+item.width;
       const t=item.task,top=6+lane*32,position={left:item.left,right:item.left+item.width,center:item.left+item.width/2,y:rowOffset+top+14};if(!markerPositions[t.id]||!item.recommended)markerPositions[t.id]=position;
-      markers+=`<button class="tl-marker precision-${item.precision} ${item.recommended?"recommended-marker":""} ${t.completed?"done":""} ${!t.completed&&item.end<localDate()?"overdue":""}" ${item.recommended?"":'draggable="true"'} data-id="${t.id}" style="left:${item.left}px;top:${top}px;width:${item.width}px;--color:${assigneeColor(t.assignee)}" title="${esc(t.title||"(ohne Titel)")} – ${esc(item.label)}">${esc(t.title||"(ohne Titel)")}</button>`;
+      markers+=`<button class="tl-marker precision-${item.precision} ${!item.recommended&&t.is_milestone?"milestone-marker":""} ${item.recommended?"recommended-marker":""} ${t.completed?"done":""} ${!t.completed&&item.end<localDate()?"overdue":""}" ${item.recommended?"":'draggable="true"'} data-id="${t.id}" style="left:${item.left}px;top:${top}px;width:${item.width}px;--color:${assigneeColor(t.assignee)}" title="${esc(t.title||"(ohne Titel)")} – ${esc(item.label)}">${!item.recommended&&t.is_milestone&&item.precision!=="exact"?"◆ ":""}${esc(t.title||"(ohne Titel)")}</button>`;
     }
     const rowHeight=Math.max(62,12+laneEnds.length*32);rows+=`<div class="tl-row" style="height:${rowHeight}px"><div class="tl-label">${esc(name)}</div>${markers}</div>`;rowOffset+=rowHeight;
   }
@@ -307,7 +315,7 @@ function paletteResults(query){
     const recent=state.settings.recentCommands||[];return commands.sort((a,b)=>{const ai=recent.indexOf(a.id),bi=recent.indexOf(b.id);return (ai<0?100+a.order:ai)-(bi<0?100+b.order:bi)});
   }
   const items=[...commands];
-  for(const t of state.tasks)items.push({type:"task",id:t.id,label:`Task #${t.id} – ${t.title||"(ohne Titel)"} – ${t.assignee||"ohne Bearbeiter"}${t.due_display?` – ${t.due_display}`:""}`,search:`#${t.id} ${t.id} ${t.title} ${t.assignee||""} ${t.project||""} ${t.category||""} ${t.tags.join(" ")}`});
+  for(const t of state.tasks)items.push({type:"task",id:t.id,label:`Task #${t.id} – ${t.title||"(ohne Titel)"} – ${t.assignee||"ohne Bearbeiter"}${t.due_display?` – ${t.due_display}`:""}`,search:`#${t.id} ${t.id} ${t.title} ${t.notes||""} ${t.assignee||""} ${t.project||""} ${t.category||""} ${t.tags.join(" ")}`});
   for(const [key,kind] of [["assignees","Bearbeiter"],["projects","Projekt"],["categories","Kategorie"],["tags","Tag"]])for(const value of state.lookups[key])items.push({type:"lookup",label:`${kind}: ${value.name}`,search:value.name});
   return rankSearchItems(query,items).slice(0,60);
 }
@@ -334,7 +342,7 @@ function executePaletteItem(){
 }
 
 function bind(){
-  $("#tasks").addEventListener("click",e=>{const restore=e.target.closest("[data-restore]");if(restore)return restoreTask(+restore.dataset.restore);const cell=e.target.closest("td");if(cell?.dataset.field){selectCell(cell);if(e.detail===2){if(cell.dataset.field==="id")openEditor(+cell.closest("tr").dataset.id);else editCell(cell)}}});$("#tasks").addEventListener("keydown",onTableKey);
+  $("#tasks").addEventListener("click",e=>{const restore=e.target.closest("[data-restore]");if(restore)return restoreTask(+restore.dataset.restore);const cell=e.target.closest("td");if(cell?.dataset.field){let cursor=null;if(cell.dataset.field==="notes"&&e.detail===2){const caret=document.caretPositionFromPoint?.(e.clientX,e.clientY);if(caret&&cell.contains(caret.offsetNode))cursor=caret.offset}selectCell(cell);if(e.detail===2){if(cell.dataset.field==="id")openEditor(+cell.closest("tr").dataset.id);else editCell(cell,cursor)}}});$("#tasks").addEventListener("keydown",onTableKey);
   $("#tasks thead").onclick=e=>{const f=e.target.closest("th")?.dataset.field;if(!f)return;const old=state.settings.sort||defaults.sort;saveSettings({sort:{field:f,dir:old.field===f?-old.dir:1}});renderTable()};
   $$("nav button").forEach(b=>b.onclick=()=>{saveSettings({view:b.dataset.view});render()});
   for(const [key,ids] of Object.entries(filterControls))for(const id of ids){const el=$("#"+id);el.addEventListener(key==="search"?"input":"change",()=>{const filters={...state.settings.filters,[key]:el.value};saveSettings({filters});for(const peer of ids)if(peer!==id)$("#"+peer).value=el.value;if(state.settings.view==="timeline")renderTimeline();else renderTable()})}

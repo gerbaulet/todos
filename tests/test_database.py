@@ -32,6 +32,50 @@ class DatabaseTests(unittest.TestCase):
                 self.db.update_task(task["id"], {"title": "Neu"})
         self.assertEqual(self.db.get_task(task["id"])["title"], "Alt")
 
+    def test_milestones_require_each_supported_own_due_precision(self):
+        self.assertFalse(self.db.create_task({"title": "Normal"})["is_milestone"])
+        cases = [("exact", "2026-10-15"), ("week", "2026-W42"), ("month", "2026-10"),
+                 ("quarter", "2026-Q4"), ("year", "2027")]
+        for due_type, due_value in cases:
+            with self.subTest(due_type=due_type):
+                task = self.db.create_task({"title": due_type, "is_milestone": True,
+                                            "due_type": due_type, "due_value": due_value})
+                self.assertTrue(task["is_milestone"])
+        with self.assertRaisesRegex(ValueError, "eigenen Termin"):
+            self.db.create_task({"title": "Ohne", "is_milestone": True})
+
+    def test_milestone_conversion_due_removal_and_history(self):
+        undated = self.db.create_task({"title": "Ohne Termin"})
+        with self.assertRaisesRegex(ValueError, "eigenen Termin"):
+            self.db.update_task(undated["id"], {"is_milestone": True})
+        dated = self.db.create_task({"title": "Mit Termin", "due_type": "quarter", "due_value": "2027-Q2"})
+        dated = self.db.update_task(dated["id"], {"is_milestone": True})
+        self.assertTrue(dated["is_milestone"])
+        with self.assertRaisesRegex(ValueError, "eigenen Termin"):
+            self.db.update_task(dated["id"], {"due_type": None, "due_value": None})
+        dated = self.db.update_task(dated["id"], {"is_milestone": False, "due_type": None, "due_value": None})
+        self.assertFalse(dated["is_milestone"])
+        self.assertIsNone(dated["due_type"])
+        milestone_changes = [x for x in self.db.history(dated["id"]) if x["field"] == "is_milestone"]
+        self.assertEqual([(x["old_value"], x["new_value"]) for x in reversed(milestone_changes)], [("False", "True"), ("True", "False")])
+
+    def test_notes_history_and_lifecycle(self):
+        full_old = "Erste Zeile\nZweite Zeile"
+        full_new = "Abstimmung mit Legal abgeschlossen\nFreigabe folgt"
+        task = self.db.create_task({"title": "Vertrag prüfen", "notes": full_old})
+        self.assertEqual(task["notes"], full_old)
+        task = self.db.update_task(task["id"], {"notes": full_new})
+        change = next(x for x in self.db.history(task["id"]) if x["field"] == "notes")
+        self.assertEqual((change["old_value"], change["new_value"]), (full_old, full_new))
+        self.db.delete_task(task["id"])
+        self.db.restore_task(task["id"])
+        self.assertEqual(self.db.get_task(task["id"])["notes"], full_new)
+        cleared = self.db.update_task(task["id"], {"notes": ""})
+        self.assertEqual(cleared["notes"], "")
+        milestone = self.db.create_task({"title": "M", "notes": "Notiz", "is_milestone": True,
+                                         "due_type": "year", "due_value": "2028"})
+        self.assertEqual(milestone["notes"], "Notiz")
+
     def test_complete_reopen_delete_restore(self):
         task = self.db.create_task()
         task = self.db.update_task(task["id"], {"completed": True})
@@ -171,6 +215,8 @@ class DatabaseTests(unittest.TestCase):
             raw.commit(); raw.close()
             migrated = Database(path)
             self.assertEqual((migrated.get_task(1)["due_type"], migrated.get_task(1)["due_value"]), ("exact", "2027-09-15"))
+            self.assertFalse(migrated.get_task(1)["is_milestone"])
+            self.assertEqual(migrated.get_task(1)["notes"], "")
             dependency = migrated.get_task(2)["dependencies"][0]
             self.assertEqual((dependency["depends_on_task_id"], dependency["offset_value"]), (1, None))
         finally:
