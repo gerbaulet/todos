@@ -120,6 +120,8 @@ function applySettings(){
 }
 function esc(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function activeColumns(){return columns.filter(c=>!optional.includes(c[0])||(state.settings.visibleColumns||[]).includes(c[0]))}
+function recommendedRanges(t){return t.dependencies.filter(d=>d.recommended_start).map(d=>({start:d.recommended_start,end:d.recommended_end,dependency:d}))}
+function effectiveDueStart(t){return t.due_start||recommendedRanges(t).map(x=>x.start).sort()[0]||null}
 function filteredTasks(includeDue=true){
   const f=state.settings.filters||{},now=Date.now(),today=localDate(),week=isoLocal(new Date(Date.now()+7*86400000));
   let data=state.tasks.filter(t=>{
@@ -134,7 +136,7 @@ function filteredTasks(includeDue=true){
   });
   if(state.settings.view==="completed")return data.sort((a,b)=>(b.completed_at||"").localeCompare(a.completed_at||""));
   const {field,dir}=state.settings.sort||defaults.sort;
-  return data.sort((a,b)=>{if(field==="due_date"){const rank={exact:1,week:2,month:3,quarter:4,year:5};if(!a.due_start||!b.due_start)return !a.due_start&&!b.due_start?0:!a.due_start?1:-1;return a.due_start.localeCompare(b.due_start)*dir||(rank[a.due_type]||9)-(rank[b.due_type]||9)}let av=a[field],bv=b[field];if(Array.isArray(av))av=av.map(depLabel).join(",");if(Array.isArray(bv))bv=bv.map(depLabel).join(",");return String(av??"").localeCompare(String(bv??""),"de",{numeric:true})*dir});
+  return data.sort((a,b)=>{if(field==="due_date"){const rank={exact:1,week:2,month:3,quarter:4,year:5},as=effectiveDueStart(a),bs=effectiveDueStart(b);if(!as||!bs)return !as&&!bs?0:!as?1:-1;return as.localeCompare(bs)*dir||(rank[a.due_type]||6)-(rank[b.due_type]||6)}let av=a[field],bv=b[field];if(Array.isArray(av))av=av.map(depLabel).join(",");if(Array.isArray(bv))bv=bv.map(depLabel).join(",");return String(av??"").localeCompare(String(bv??""),"de",{numeric:true})*dir});
 }
 function render(){
   const view=state.settings.view;
@@ -230,30 +232,31 @@ function timelineMarkerWidth(task){
 }
 function dueAtDate(type,d){if(type==="exact")return {due_type:type,due_value:isoLocal(d)};if(type==="week"){const [y,w]=isoWeek(d);return {due_type:type,due_value:`${y}-W${String(w).padStart(2,"0")}`}}if(type==="month")return {due_type:type,due_value:isoLocal(d).slice(0,7)};if(type==="quarter")return {due_type:type,due_value:`${d.getFullYear()}-Q${Math.floor(d.getMonth()/3)+1}`};return {due_type:type,due_value:String(d.getFullYear())}}
 function moveDue(task,direction,large=false){const d=new Date(task.due_start+"T12:00:00");if(task.due_type==="exact")d.setDate(d.getDate()+direction*(large?7:1));else if(task.due_type==="week")d.setDate(d.getDate()+direction*7);else if(task.due_type==="month")d.setMonth(d.getMonth()+direction);else if(task.due_type==="quarter")d.setMonth(d.getMonth()+direction*3);else d.setFullYear(d.getFullYear()+direction);return dueAtDate(task.due_type,d)}
+function timelineEntries(task){const entries=[];if(task.due_type)entries.push({task,start:task.due_start,end:task.due_end,precision:task.due_type,label:task.due_display,recommended:false});for(const range of recommendedRanges(task))entries.push({task,start:range.start,end:range.end,precision:range.start===range.end?"exact":"range",label:recommendationLabel(range.dependency),recommended:true});return entries}
 function renderTimeline(){
-  const tasks=filteredTasks(false),dated=tasks.filter(t=>t.due_type),assignees=[...new Set(tasks.map(t=>t.assignee||"Ohne Bearbeiter"))].sort((a,b)=>a.localeCompare(b,"de"));
+  const tasks=filteredTasks(false),entries=tasks.flatMap(timelineEntries),assignees=[...new Set(tasks.map(t=>t.assignee||"Ohne Bearbeiter"))].sort((a,b)=>a.localeCompare(b,"de"));
   const px=DAY[state.settings.zoom]||18,start=new Date();start.setHours(12,0,0,0);start.setDate(start.getDate()-45);const days=500,width=140+days*px;
   let months="";const cursor=new Date(start);cursor.setDate(1);if(cursor<start)cursor.setMonth(cursor.getMonth()+1);while(dayOffset(isoLocal(cursor),start)<days){const left=140+dayOffset(isoLocal(cursor),start)*px,next=new Date(cursor);next.setMonth(next.getMonth()+1);months+=`<div class="tl-month" style="left:${left}px;width:${Math.max(1,(next-cursor)/86400000)*px}px">${cursor.toLocaleDateString("de-DE",{month:"long",year:"numeric"})}</div>`;cursor.setMonth(cursor.getMonth()+1)}
   let markerPositions={},rows="",rowOffset=0;
   for(const name of assignees){
-    const same=dated.filter(t=>(t.assignee||"Ohne Bearbeiter")===name).map(t=>{const range=(dayOffset(t.due_end,start)-dayOffset(t.due_start,start)+1)*px;return {task:t,left:140+dayOffset(t.due_start,start)*px,width:t.due_type==="exact"?timelineMarkerWidth(t):Math.max(8,range)}}).sort((a,b)=>a.left-b.left||a.task.id-b.task.id),laneEnds=[];
+    const same=entries.filter(x=>(x.task.assignee||"Ohne Bearbeiter")===name).map(entry=>{const range=(dayOffset(entry.end,start)-dayOffset(entry.start,start)+1)*px;return {...entry,left:140+dayOffset(entry.start,start)*px,width:entry.precision==="exact"?timelineMarkerWidth(entry.task):Math.max(8,range)}}).sort((a,b)=>a.left-b.left||a.task.id-b.task.id||a.recommended-b.recommended),laneEnds=[];
     let markers="";
     for(const item of same){
       let lane=laneEnds.findIndex(end=>end+8<=item.left);if(lane<0)lane=laneEnds.length;laneEnds[lane]=item.left+item.width;
-      const t=item.task,top=6+lane*32;markerPositions[t.id]={left:item.left,right:item.left+item.width,center:item.left+item.width/2,y:rowOffset+top+14};
-      markers+=`<button class="tl-marker precision-${t.due_type} ${t.completed?"done":""} ${!t.completed&&t.due_end<localDate()?"overdue":""}" draggable="true" data-id="${t.id}" style="left:${item.left}px;top:${top}px;width:${item.width}px;--color:${assigneeColor(t.assignee)}" title="${esc(t.title||"(ohne Titel)")} – ${esc(t.due_display)}">${esc(t.title||"(ohne Titel)")}</button>`;
+      const t=item.task,top=6+lane*32,position={left:item.left,right:item.left+item.width,center:item.left+item.width/2,y:rowOffset+top+14};if(!markerPositions[t.id]||!item.recommended)markerPositions[t.id]=position;
+      markers+=`<button class="tl-marker precision-${item.precision} ${item.recommended?"recommended-marker":""} ${t.completed?"done":""} ${!t.completed&&item.end<localDate()?"overdue":""}" ${item.recommended?"":'draggable="true"'} data-id="${t.id}" style="left:${item.left}px;top:${top}px;width:${item.width}px;--color:${assigneeColor(t.assignee)}" title="${esc(t.title||"(ohne Titel)")} – ${esc(item.label)}">${esc(t.title||"(ohne Titel)")}</button>`;
     }
     const rowHeight=Math.max(62,12+laneEnds.length*32);rows+=`<div class="tl-row" style="height:${rowHeight}px"><div class="tl-label">${esc(name)}</div>${markers}</div>`;rowOffset+=rowHeight;
   }
-  const todayX=140+dayOffset(localDate(),start)*px;let svg="";if(state.settings.showDependencies){for(const t of dated)for(const d of t.dependencies){const target=markerPositions[t.id],source=markerPositions[d.depends_on_task_id];if(source&&target){const points=source.center<=target.center?{x1:source.right,x2:target.left}:{x1:source.left,x2:target.right};svg+=`<line x1="${points.x1}" y1="${source.y}" x2="${points.x2}" y2="${target.y}" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"><title>${esc(depLabel(d))}</title></line>`}}}
-  const undated=tasks.filter(t=>!t.due_type).map(t=>{const rec=t.dependencies.filter(d=>d.recommended_start).map(recommendationLabel).join(", ");return `<button data-id="${t.id}" class="undated-task" title="${rec?esc(rec):"Ohne Termin"}">${esc(t.title||"(ohne Titel)")}${rec?` <small>${esc(rec)}</small>`:""}</button>`}).join("");
+  const todayX=140+dayOffset(localDate(),start)*px;let svg="";if(state.settings.showDependencies){for(const t of tasks)for(const d of t.dependencies){const target=markerPositions[t.id],source=markerPositions[d.depends_on_task_id];if(source&&target){const points=source.center<=target.center?{x1:source.right,x2:target.left}:{x1:source.left,x2:target.right};svg+=`<line x1="${points.x1}" y1="${source.y}" x2="${points.x2}" y2="${target.y}" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"><title>${esc(depLabel(d))}</title></line>`}}}
+  const undated=tasks.filter(t=>!timelineEntries(t).length).map(t=>`<button data-id="${t.id}" class="undated-task" title="Ohne Termin">${esc(t.title||"(ohne Titel)")}</button>`).join("");
   $("#timeline").innerHTML=`<div class="tl-canvas zoom-${state.settings.zoom}" style="width:${width}px"><div class="tl-months">${months}</div><div class="today-line" style="left:${todayX}px"></div>${rows}<svg class="dep-lines" width="${width}" height="${rowOffset}"><defs><marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#64748b"/></marker></defs>${svg}</svg><div class="undated"><strong>Ohne Termin</strong>${undated||"Keine Aufgaben"}</div></div>`;
   const scroller=$("#timeline");scroller.scrollLeft=state.settings.timelineScroll||Math.max(0,todayX-scroller.clientWidth/3);
-  $$(".tl-marker").forEach(el=>{el.addEventListener("dragstart",e=>e.dataTransfer.setData("text/plain",el.dataset.id));el.addEventListener("click",()=>openEditor(+el.dataset.id));el.addEventListener("keydown",timelineKey)});$$(".undated-task").forEach(el=>el.onclick=()=>openEditor(+el.dataset.id));
+  $$(".tl-marker").forEach(el=>{if(el.draggable)el.addEventListener("dragstart",e=>e.dataTransfer.setData("text/plain",el.dataset.id));el.addEventListener("click",()=>openEditor(+el.dataset.id));el.addEventListener("keydown",timelineKey)});$$(".undated-task").forEach(el=>el.onclick=()=>openEditor(+el.dataset.id));
   scroller.ondragover=e=>e.preventDefault();scroller.ondrop=e=>{e.preventDefault();const id=+e.dataTransfer.getData("text/plain"),task=state.tasks.find(t=>t.id===id),rect=scroller.getBoundingClientRect(),x=e.clientX-rect.left+scroller.scrollLeft-140,index=Math.round(x/px),d=new Date(start);d.setDate(d.getDate()+index);if(task?.due_type)updateTask(id,dueAtDate(task.due_type,d))};
 }
 function assigneeColor(name){return state.lookups.assignees.find(a=>a.name===name)?.color||"#64748b"}
-function timelineKey(e){const markers=$$(".tl-marker"),i=markers.indexOf(e.currentTarget),id=+e.currentTarget.dataset.id,t=state.tasks.find(x=>x.id===id);if(e.key==="Enter")return openEditor(id);if(e.shiftKey&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){e.preventDefault();return updateTask(id,moveDue(t,e.key==="ArrowRight"?1:-1,e.ctrlKey))}if(e.key.startsWith("Arrow")){e.preventDefault();markers[Math.max(0,Math.min(markers.length-1,i+(e.key==="ArrowLeft"||e.key==="ArrowUp"?-1:1)))]?.focus()}}
+function timelineKey(e){const markers=$$(".tl-marker"),i=markers.indexOf(e.currentTarget),id=+e.currentTarget.dataset.id,t=state.tasks.find(x=>x.id===id);if(e.key==="Enter")return openEditor(id);if(!e.currentTarget.classList.contains("recommended-marker")&&e.shiftKey&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){e.preventDefault();return updateTask(id,moveDue(t,e.key==="ArrowRight"?1:-1,e.ctrlKey))}if(e.key.startsWith("Arrow")){e.preventDefault();markers[Math.max(0,Math.min(markers.length-1,i+(e.key==="ArrowLeft"||e.key==="ArrowUp"?-1:1)))]?.focus()}}
 
 function openOverlay(dialog,input){
   if(state.overlay===dialog)return;
@@ -351,6 +354,6 @@ function bind(){
   document.addEventListener("keydown",e=>{const mod=e.ctrlKey||e.metaKey,typing=/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||e.target.isContentEditable,key=e.key.toLowerCase(),isN=key==="n"||e.code==="KeyN",isP=key==="p"||e.code==="KeyP",quick=(e.altKey&&!mod&&isN)||(e.ctrlKey&&(e.shiftKey||e.altKey)&&isN),palette=e.ctrlKey&&(e.shiftKey||e.altKey)&&isP;if(e.key==="Escape"&&$("#shortcuts").open)$("#shortcuts").close();if(e.key==="Escape"&&$("#editor").open)$("#editor").close();if(quick){e.preventDefault();openQuickAdd()}else if(palette){e.preventDefault();openPalette()}else if(mod&&e.key==="Enter"){e.preventDefault();createTask()}else if(mod&&key==="f"){e.preventDefault();$("#search").focus()}else if(mod&&e.key===" "&&!state.editing){e.preventDefault();toggleCurrent()}else if(mod&&(e.key==="Delete"||e.key==="Backspace")&&!state.editing&&!typing){e.preventDefault();deleteCurrent()}else if(e.key==="?"&&!typing)$("#shortcuts").showModal()});
   setInterval(()=>{if(state.settings.view==="table"&&state.settings.filters.status==="active")renderTable()},60000);
 }
-const TodoLogic={parseDate,parseDue,parseDependency,parseDependencies,parseQuickAdd,normalizeSearch,fuzzyRank,rankSearchItems,dayOffset,isoLocal,isoWeek,dueAtDate,moveDue,paletteResults};
+const TodoLogic={parseDate,parseDue,parseDependency,parseDependencies,parseQuickAdd,normalizeSearch,fuzzyRank,rankSearchItems,dayOffset,isoLocal,isoWeek,dueAtDate,moveDue,effectiveDueStart,timelineEntries,paletteResults};
 if(typeof module!=="undefined")module.exports=TodoLogic;
 if(typeof window!=="undefined"){window.TodoLogic=TodoLogic;bind();load()}

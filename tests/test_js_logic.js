@@ -1,6 +1,6 @@
 "use strict";
 const assert=require("node:assert/strict");
-const {parseDate,parseDue,parseDependency,parseQuickAdd,moveDue,normalizeSearch,fuzzyRank,rankSearchItems}=require("../static/app.js");
+const {parseDate,parseDue,parseDependency,parseQuickAdd,moveDue,effectiveDueStart,timelineEntries,normalizeSearch,fuzzyRank,rankSearchItems}=require("../static/app.js");
 const base=new Date(2026,8,4,12);
 const parse=input=>parseQuickAdd(input,base);
 
@@ -49,6 +49,9 @@ assert.deepEqual(moveDue({due_type:"week",due_start:"2027-08-16"},1),{due_type:"
 assert.deepEqual(moveDue({due_type:"month",due_start:"2027-09-01"},1),{due_type:"month",due_value:"2027-10"});
 assert.deepEqual(moveDue({due_type:"quarter",due_start:"2027-04-01"},1),{due_type:"quarter",due_value:"2027-Q3"});
 assert.deepEqual(moveDue({due_type:"year",due_start:"2027-01-01"},1),{due_type:"year",due_value:"2028"});
+const recommendedTask={id:7,title:"Kind",due_type:null,due_start:null,due_end:null,due_display:"",dependencies:[{depends_on_task_id:1,recommended_start:"2026-09-15",recommended_end:"2026-10-14"}]};
+assert.equal(effectiveDueStart(recommendedTask),"2026-09-15");
+assert.deepEqual(timelineEntries(recommendedTask).map(x=>[x.start,x.end,x.precision,x.recommended]),[["2026-09-15","2026-10-14","range",true]]);
 
 assert.equal(normalizeSearch("Müllerstraße"),"mullerstrasse");
 assert.ok(fuzzyRank("hist","Historie öffnen")<fuzzyRank("hist","Globale Historie"));
