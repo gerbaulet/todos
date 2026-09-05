@@ -52,6 +52,8 @@ assert.deepEqual(moveDue({due_type:"year",due_start:"2027-01-01"},1),{due_type:"
 const recommendedTask={id:7,title:"Kind",due_type:null,due_start:null,due_end:null,due_display:"",dependencies:[{depends_on_task_id:1,recommended_start:"2026-09-15",recommended_end:"2026-10-14"}]};
 assert.equal(effectiveDueStart(recommendedTask),"2026-09-15");
 assert.deepEqual(timelineEntries(recommendedTask).map(x=>[x.start,x.end,x.precision,x.recommended]),[["2026-09-15","2026-10-14","range",true]]);
+const oneDayTask={...recommendedTask,dependencies:[{depends_on_task_id:1,recommended_start:"2026-09-15",recommended_end:"2026-09-15"}]};
+assert.equal(timelineEntries(oneDayTask)[0].label,"15.09.2026");
 
 assert.equal(normalizeSearch("Müllerstraße"),"mullerstrasse");
 assert.ok(fuzzyRank("hist","Historie öffnen")<fuzzyRank("hist","Globale Historie"));

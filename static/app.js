@@ -151,7 +151,7 @@ function display(t,field){
   if(field==="dependencies")return t.dependencies.map(depLabel).join(", ");if(field==="tags")return t.tags.join(", ");return t[field]??"";
 }
 function depLabel(d){if(typeof d==="number")return "#"+d;const unit={day:"T",week:"W",month:"M",year:"J"}[d.offset_unit];return `#${d.depends_on_task_id}${d.offset_value==null?"":` +${d.offset_value}${unit}`}`}
-function recommendationLabel(d){return d.recommended_start?`${dateLabel(d.recommended_start)}–${dateLabel(d.recommended_end)}`:""}
+function recommendationLabel(d){if(!d.recommended_start)return "";return d.recommended_start===d.recommended_end?dateLabel(d.recommended_start):`${dateLabel(d.recommended_start)}–${dateLabel(d.recommended_end)}`}
 function dueDetails(t){const recommendations=t.dependencies.filter(d=>d.recommended_start);return [t.due_display&&`Eigener Termin: ${t.due_display}`,...recommendations.map(d=>`Abhängigkeit ${depLabel(d)}: ${recommendationLabel(d)}`)].filter(Boolean).join("\n")}
 function renderTable(){
   const cols=activeColumns(),data=filteredTasks(),head=$("#tasks thead tr"),body=$("#tasks tbody");
