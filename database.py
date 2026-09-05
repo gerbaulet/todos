@@ -286,8 +286,6 @@ class Database:
             completed = int(bool(data.get("completed", False)))
             due_type, due_value = self._due_from_data(data)
             is_milestone = bool(data.get("is_milestone", False))
-            if is_milestone and not due_type:
-                raise ValueError("Ein Meilenstein muss einen eigenen Termin haben.")
             cur = db.execute(
                 """INSERT INTO tasks(title,assignee_id,due_date,due_type,due_value,completed,completed_at,project_id,category_id,link,is_milestone,notes,created_at,updated_at)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
@@ -459,10 +457,6 @@ class Database:
                 scalar["completed_at"] = now() if value and not old["completed"] else (old["completed_at"] if value else None)
             if "is_milestone" in changes:
                 scalar["is_milestone"] = int(bool(changes["is_milestone"]))
-            final_due_type = scalar.get("due_type", old["due_type"])
-            final_is_milestone = bool(scalar.get("is_milestone", old["is_milestone"]))
-            if final_is_milestone and not final_due_type:
-                raise ValueError("Ein Meilenstein muss einen eigenen Termin haben.")
             if changes:
                 scalar["updated_at"] = now()
             if scalar:

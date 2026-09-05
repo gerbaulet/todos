@@ -61,14 +61,15 @@ class ApiTests(unittest.TestCase):
         error=self.request("POST", "/api/tasks", {"title":"Quick Add", "dependencies":[seed["id"]+1]}, 400)
         self.assertIn("selbst", error["error"])
 
-    def test_server_rejects_milestone_without_own_due(self):
-        error=self.request("POST", "/api/tasks", {"title":"Meilenstein", "is_milestone":True}, 400)
-        self.assertIn("eigenen Termin", error["error"])
+    def test_server_allows_milestone_without_own_due(self):
         task=self.request("POST", "/api/tasks", {"title":"Meilenstein", "is_milestone":True,
-                                                   "due_type":"month", "due_value":"2027-10", "notes":"Freigabe"}, 201)
+                                                   "notes":"Freigabe"}, 201)
         self.assertTrue(task["is_milestone"])
-        error=self.request("PATCH", f"/api/tasks/{task['id']}", {"due_type":None, "due_value":None}, 400)
-        self.assertIn("eigenen Termin", error["error"])
+        self.assertIsNone(task["due_type"])
+        dated=self.request("PATCH", f"/api/tasks/{task['id']}", {"due_type":"month", "due_value":"2027-10"})
+        undated=self.request("PATCH", f"/api/tasks/{task['id']}", {"due_type":None, "due_value":None})
+        self.assertEqual(dated["due_type"], "month")
+        self.assertIsNone(undated["due_type"])
 
     def test_list_and_global_history(self):
         self.assertIsInstance(self.request("GET", "/api/tasks"), list)

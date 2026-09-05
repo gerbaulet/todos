@@ -32,7 +32,7 @@ class DatabaseTests(unittest.TestCase):
                 self.db.update_task(task["id"], {"title": "Neu"})
         self.assertEqual(self.db.get_task(task["id"])["title"], "Alt")
 
-    def test_milestones_require_each_supported_own_due_precision(self):
+    def test_milestones_support_optional_due_with_each_precision(self):
         self.assertFalse(self.db.create_task({"title": "Normal"})["is_milestone"])
         cases = [("exact", "2026-10-15"), ("week", "2026-W42"), ("month", "2026-10"),
                  ("quarter", "2026-Q4"), ("year", "2027")]
@@ -41,19 +41,20 @@ class DatabaseTests(unittest.TestCase):
                 task = self.db.create_task({"title": due_type, "is_milestone": True,
                                             "due_type": due_type, "due_value": due_value})
                 self.assertTrue(task["is_milestone"])
-        with self.assertRaisesRegex(ValueError, "eigenen Termin"):
-            self.db.create_task({"title": "Ohne", "is_milestone": True})
+        undated = self.db.create_task({"title": "Ohne", "is_milestone": True})
+        self.assertTrue(undated["is_milestone"])
+        self.assertIsNone(undated["due_type"])
 
     def test_milestone_conversion_due_removal_and_history(self):
         undated = self.db.create_task({"title": "Ohne Termin"})
-        with self.assertRaisesRegex(ValueError, "eigenen Termin"):
-            self.db.update_task(undated["id"], {"is_milestone": True})
+        undated = self.db.update_task(undated["id"], {"is_milestone": True})
+        self.assertTrue(undated["is_milestone"])
         dated = self.db.create_task({"title": "Mit Termin", "due_type": "quarter", "due_value": "2027-Q2"})
         dated = self.db.update_task(dated["id"], {"is_milestone": True})
         self.assertTrue(dated["is_milestone"])
-        with self.assertRaisesRegex(ValueError, "eigenen Termin"):
-            self.db.update_task(dated["id"], {"due_type": None, "due_value": None})
-        dated = self.db.update_task(dated["id"], {"is_milestone": False, "due_type": None, "due_value": None})
+        dated = self.db.update_task(dated["id"], {"due_type": None, "due_value": None})
+        self.assertTrue(dated["is_milestone"])
+        dated = self.db.update_task(dated["id"], {"is_milestone": False})
         self.assertFalse(dated["is_milestone"])
         self.assertIsNone(dated["due_type"])
         milestone_changes = [x for x in self.db.history(dated["id"]) if x["field"] == "is_milestone"]

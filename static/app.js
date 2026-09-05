@@ -2,8 +2,8 @@
 const $=s=>document.querySelector(s), $$=(s,root=document)=>[...root.querySelectorAll(s)];
 const columns=[
   ["id","ID",false],["title","Was ist zu tun",true],["assignee","Wer",true],["due_date","Bis wann",true],
-  ["completed","Erledigt",true],["dependencies","Abhängigkeiten",true],["project","Projekt",true],
-  ["category","Kategorie",true],["tags","Tags",true],["notes","Notiz",true],["link","Link",true]
+  ["notes","Notiz",true],["completed","Erledigt",true],["dependencies","Abhängigkeiten",true],["project","Projekt",true],
+  ["category","Kategorie",true],["tags","Tags",true],["link","Link",true]
 ];
 const optional=["project","category","tags","notes","link"];
 const filterControls={search:["search","tl-search"],status:["status","tl-status"],type:["f-type","tl-type"],assignee:["f-assignee","tl-assignee"],project:["f-project","tl-project"],category:["f-category","tl-category"],tag:["f-tag","tl-tag"],due:["f-due"]};
@@ -80,7 +80,6 @@ function parseQuickAdd(input,base=new Date()){
   }
   result.title=title.join(" ").trim();result.tags=[...new Set(result.tags)];result.dependencies=[...new Map(result.dependencies.map(x=>[x.depends_on_task_id,x])).values()];
   if(!result.title)throw Error("Bitte einen Aufgabentitel eingeben.");
-  if(result.is_milestone&&!result.due_type)throw Error("Ein Meilenstein muss einen eigenen Termin haben.");
   return result;
 }
 function normalizeSearch(value){return String(value??"").toLocaleLowerCase("de").replace(/ß/g,"ss").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ")}

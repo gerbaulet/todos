@@ -48,7 +48,7 @@ assert.equal(parse("* Freigabe Q4 2026").is_milestone,true);
 assert.equal(parse("   * Freigabe Q4 2026").title,"Freigabe");
 assert.equal(parse("Freigabe * Vorstand Q4 2026").is_milestone,false);
 assert.equal(parse("Freigabe Q4 2026 *").is_milestone,false);
-assert.throws(()=>parse("* Freigabe"),/eigenen Termin/);
+assert.deepEqual([parse("* Freigabe").title,parse("* Freigabe").is_milestone,parse("* Freigabe").due_type],["Freigabe",true,null]);
 assert.deepEqual(parse("* Freigabe KW 42 2026 @Müller ^123+2w"),{
   title:"Freigabe",assignee:"Müller",due_type:"week",due_value:"2026-W42",tags:[],project:null,category:null,
   dependencies:[{depends_on_task_id:123,offset_value:2,offset_unit:"week"}],link:null,is_milestone:true
