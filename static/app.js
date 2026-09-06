@@ -157,10 +157,22 @@ function render(){
     const active=section?section===currentSection:x.dataset.view===view;
     x.classList.toggle("active",active);x.setAttribute("aria-pressed",String(active));
   });
+  renderActiveFilters();
   $("#tools").classList.toggle("hidden",view==="history"||view==="timeline");
   if(view==="timeline"){$("#timeline-view").classList.remove("hidden");renderTimeline();return}
   if(view==="history"){$("#history-view").classList.remove("hidden");renderHistory();return}
   $("#table-view").classList.remove("hidden");renderTable();
+}
+const filterNames={status:"Status",type:"Typ",assignee:"Wer",project:"Projekt",category:"Kategorie",tag:"Tag",due:"Fällig"};
+function renderActiveFilters(){
+  const filters=state.settings.filters||{},items=[];
+  for(const [key,label] of Object.entries(filterNames)){
+    const value=filters[key];if(!value||(key==="status"&&value==="active"))continue;
+    const id=filterControls[key]?.[0],control=id?$("#"+id):null,option=control?.querySelector(`option[value="${CSS.escape(value)}"]`);
+    items.push(`<button type="button" class="filter-chip" data-clear-filter="${key}" aria-label="Filter ${esc(label)} entfernen"><span>${esc(label)}: ${esc(option?.textContent||value)}</span><b aria-hidden="true">×</b></button>`);
+  }
+  const box=$("#active-filters"),active=items.length>0;box.innerHTML=items.join("");box.classList.toggle("hidden",!active);
+  $$(".reset-filters").forEach(button=>button.classList.toggle("hidden",!active));
 }
 function display(t,field){
   if(field==="due_date")return t.due_display||"";if(field==="completed")return t.completed?"✓":"";
@@ -359,7 +371,9 @@ function bind(){
   $("#tasks thead").addEventListener("pointerdown",e=>{const handle=e.target.closest(".column-resizer");if(handle)startColumnResize(e,handle)});
   $("#tasks thead").addEventListener("keydown",e=>{const handle=e.target.closest(".column-resizer");if(handle&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){e.preventDefault();e.stopPropagation();setColumnWidth(handle.dataset.resize,columnWidth(handle.dataset.resize)+(e.key==="ArrowRight"?10:-10),true)}});
   $$('[data-view]').forEach(b=>b.onclick=()=>{saveSettings({view:b.dataset.view});render();b.closest("details")?.removeAttribute("open")});
-  for(const [key,ids] of Object.entries(filterControls))for(const id of ids){const el=$("#"+id);el.addEventListener(key==="search"?"input":"change",()=>{const filters={...state.settings.filters,[key]:el.value};saveSettings({filters});for(const peer of ids)if(peer!==id)$("#"+peer).value=el.value;if(state.settings.view==="timeline")renderTimeline();else renderTable()})}
+  for(const [key,ids] of Object.entries(filterControls))for(const id of ids){const el=$("#"+id);el.addEventListener(key==="search"?"input":"change",()=>{const filters={...state.settings.filters,[key]:el.value};saveSettings({filters});for(const peer of ids)if(peer!==id)$("#"+peer).value=el.value;renderActiveFilters();if(state.settings.view==="timeline")renderTimeline();else renderTable()})}
+  $("#active-filters").onclick=e=>{const key=e.target.closest("[data-clear-filter]")?.dataset.clearFilter;if(!key)return;const filters={...state.settings.filters,[key]:key==="status"?"active":""};saveSettings({filters});applySettings();render()};
+  $$(".reset-filters").forEach(button=>button.onclick=resetFilters);
   $("#columns").onchange=()=>{const visibleColumns=$$("#columns input:checked").map(x=>x.value);saveSettings({visibleColumns});renderTable()};
   $("#zoom").onchange=e=>{saveSettings({zoom:e.target.value});renderTimeline()};$("#show-deps").onchange=e=>{saveSettings({showDependencies:e.target.checked});renderTimeline()};
   $("#today").onclick=()=>{const px=DAY[state.settings.zoom],x=140+45*px;$("#timeline").scrollLeft=Math.max(0,x-$("#timeline").clientWidth/3)};$("#timeline").onscroll=()=>{clearTimeout($("#timeline")._timer);$("#timeline")._timer=setTimeout(()=>saveSettings({timelineScroll:$("#timeline").scrollLeft}),500)};

@@ -35,21 +35,25 @@
   </header>
 
   <section id="tools" aria-label="Filter">
-    <label class="search">Suche <input id="search" type="search" autocomplete="off" placeholder="Titel, Notiz, Person, Tag …"></label>
+    <label class="search"><span>Suche</span><input id="search" type="search" autocomplete="off" placeholder="Aufgaben durchsuchen …"></label>
     <label>Status <select id="status"><option value="active">Aktuell</option><option value="open">Offen</option><option value="all">Alle</option><option value="completed">Erledigt</option></select></label>
-    <label>Typ <select id="f-type"><option value="">Alle</option><option value="tasks">Aufgaben</option><option value="milestones">Meilensteine</option></select></label>
     <label>Wer <select id="f-assignee"><option value="">Alle</option></select></label>
-    <label>Projekt <select id="f-project"><option value="">Alle</option></select></label>
-    <label>Kategorie <select id="f-category"><option value="">Alle</option></select></label>
-    <label>Tag <select id="f-tag"><option value="">Alle</option></select></label>
-    <label>Fällig <select id="f-due"><option value="">Immer</option><option value="overdue">Überfällig</option><option value="today">Heute</option><option value="week">7 Tage</option><option value="none">Ohne Termin</option></select></label>
-    <details><summary>Spalten</summary><div id="columns"></div></details>
+    <details class="filter-menu"><summary>Filter</summary><div class="filter-popover">
+      <label>Typ <select id="f-type"><option value="">Alle</option><option value="tasks">Aufgaben</option><option value="milestones">Meilensteine</option></select></label>
+      <label>Projekt <select id="f-project"><option value="">Alle</option></select></label>
+      <label>Kategorie <select id="f-category"><option value="">Alle</option></select></label>
+      <label>Tag <select id="f-tag"><option value="">Alle</option></select></label>
+      <label>Fällig <select id="f-due"><option value="">Immer</option><option value="overdue">Überfällig</option><option value="today">Heute</option><option value="week">7 Tage</option><option value="none">Ohne Termin</option></select></label>
+    </div></details>
+    <details class="columns-menu"><summary>Spalten</summary><div id="columns"></div></details>
+    <button class="reset-filters hidden" type="button">Zurücksetzen</button>
   </section>
+  <div id="active-filters" class="active-filters hidden" aria-label="Aktive Filter"></div>
 
   <main>
     <section id="table-view" class="view"><div class="table-wrap"><table id="tasks"><colgroup></colgroup><thead><tr></tr></thead><tbody></tbody></table></div></section>
     <section id="timeline-view" class="view hidden">
-      <div class="timeline-tools"><button id="today">Heute</button><label>Zoom <select id="zoom"><option value="week">Woche</option><option value="month">Monat</option><option value="quarter">Quartal</option><option value="year">Jahr</option></select></label><label class="search">Suche <input id="tl-search" type="search" autocomplete="off" placeholder="Titel, Notiz, Person, Tag …"></label><label>Status <select id="tl-status"><option value="active">Aktuell</option><option value="open">Offen</option><option value="all">Alle</option><option value="completed">Erledigt</option></select></label><label>Typ <select id="tl-type"><option value="">Alle</option><option value="tasks">Aufgaben</option><option value="milestones">Meilensteine</option></select></label><label>Wer <select id="tl-assignee"><option value="">Alle</option></select></label><label>Projekt <select id="tl-project"><option value="">Alle</option></select></label><label>Kategorie <select id="tl-category"><option value="">Alle</option></select></label><label>Tag <select id="tl-tag"><option value="">Alle</option></select></label><label class="toggle"><input id="show-deps" type="checkbox"> Abhängigkeiten anzeigen</label></div>
+      <div class="timeline-tools"><button id="today">Heute</button><label>Zoom <select id="zoom"><option value="week">Woche</option><option value="month">Monat</option><option value="quarter">Quartal</option><option value="year">Jahr</option></select></label><label class="search"><span>Suche</span><input id="tl-search" type="search" autocomplete="off" placeholder="Aufgaben durchsuchen …"></label><label>Status <select id="tl-status"><option value="active">Aktuell</option><option value="open">Offen</option><option value="all">Alle</option><option value="completed">Erledigt</option></select></label><label>Wer <select id="tl-assignee"><option value="">Alle</option></select></label><details class="filter-menu"><summary>Filter</summary><div class="filter-popover"><label>Typ <select id="tl-type"><option value="">Alle</option><option value="tasks">Aufgaben</option><option value="milestones">Meilensteine</option></select></label><label>Projekt <select id="tl-project"><option value="">Alle</option></select></label><label>Kategorie <select id="tl-category"><option value="">Alle</option></select></label><label>Tag <select id="tl-tag"><option value="">Alle</option></select></label><label class="toggle"><input id="show-deps" type="checkbox"> Abhängigkeiten anzeigen</label></div></details><button class="reset-filters hidden" type="button">Zurücksetzen</button></div>
       <div id="timeline" tabindex="0"></div>
     </section>
     <section id="history-view" class="view hidden"><h2>Globale Historie</h2><div class="history-filters"><label>Freitext<input id="h-search"></label><label>Von<input id="h-from" type="date"></label><label>Bis<input id="h-to" type="date"></label><label>Änderungsart<select id="h-action"><option value="">Alle</option><option value="created">Erstellt</option><option value="updated">Geändert</option><option value="completed">Erledigt</option><option value="reopened">Wieder geöffnet</option><option value="deleted">Gelöscht</option><option value="restored">Wiederhergestellt</option></select></label></div><div id="history-list"></div></section>
