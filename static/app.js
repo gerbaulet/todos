@@ -150,7 +150,13 @@ function filteredTasks(includeDue=true){
 }
 function render(){
   const view=state.settings.view;
-  $$(".view").forEach(x=>x.classList.add("hidden"));$$("nav button").forEach(x=>x.classList.toggle("active",x.dataset.view===view));
+  $$(".view").forEach(x=>x.classList.add("hidden"));
+  $$('[data-view]').forEach(x=>{
+    const section=x.dataset.section;
+    const currentSection=["table","timeline"].includes(view)?"tasks":view;
+    const active=section?section===currentSection:x.dataset.view===view;
+    x.classList.toggle("active",active);x.setAttribute("aria-pressed",String(active));
+  });
   $("#tools").classList.toggle("hidden",view==="history"||view==="timeline");
   if(view==="timeline"){$("#timeline-view").classList.remove("hidden");renderTimeline();return}
   if(view==="history"){$("#history-view").classList.remove("hidden");renderHistory();return}
@@ -352,7 +358,7 @@ function bind(){
   $("#tasks thead").onclick=e=>{if(e.target.closest(".column-resizer"))return;const f=e.target.closest("th")?.dataset.field;if(!f)return;const old=state.settings.sort||defaults.sort;saveSettings({sort:{field:f,dir:old.field===f?-old.dir:1}});renderTable()};
   $("#tasks thead").addEventListener("pointerdown",e=>{const handle=e.target.closest(".column-resizer");if(handle)startColumnResize(e,handle)});
   $("#tasks thead").addEventListener("keydown",e=>{const handle=e.target.closest(".column-resizer");if(handle&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){e.preventDefault();e.stopPropagation();setColumnWidth(handle.dataset.resize,columnWidth(handle.dataset.resize)+(e.key==="ArrowRight"?10:-10),true)}});
-  $$("nav button").forEach(b=>b.onclick=()=>{saveSettings({view:b.dataset.view});render()});
+  $$('[data-view]').forEach(b=>b.onclick=()=>{saveSettings({view:b.dataset.view});render();b.closest("details")?.removeAttribute("open")});
   for(const [key,ids] of Object.entries(filterControls))for(const id of ids){const el=$("#"+id);el.addEventListener(key==="search"?"input":"change",()=>{const filters={...state.settings.filters,[key]:el.value};saveSettings({filters});for(const peer of ids)if(peer!==id)$("#"+peer).value=el.value;if(state.settings.view==="timeline")renderTimeline();else renderTable()})}
   $("#columns").onchange=()=>{const visibleColumns=$$("#columns input:checked").map(x=>x.value);saveSettings({visibleColumns});renderTable()};
   $("#zoom").onchange=e=>{saveSettings({zoom:e.target.value});renderTimeline()};$("#show-deps").onchange=e=>{saveSettings({showDependencies:e.target.checked});renderTimeline()};

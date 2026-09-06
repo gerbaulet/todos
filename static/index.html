@@ -11,16 +11,26 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <header>
-    <h1>Aufgaben</h1>
-    <nav aria-label="Ansichten">
-      <button data-view="table">Tabelle</button><button data-view="timeline">Timeline</button>
-      <button data-view="completed">Fertiggestellt</button><button data-view="trash">Papierkorb</button>
-      <button data-view="history">Historie</button>
+  <header class="app-header">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">✓</span><h1>Aufgaben</h1></div>
+    <nav class="section-nav" aria-label="Aufgabenbereiche">
+      <button data-view="table" data-section="tasks">Aufgaben</button>
+      <button data-view="completed" data-section="completed">Erledigt</button>
+      <button data-view="trash" data-section="trash">Papierkorb</button>
     </nav>
+    <div class="view-switch" role="group" aria-label="Darstellung">
+      <button data-view="table" aria-label="Tabellenansicht">Tabelle</button>
+      <button data-view="timeline" aria-label="Timeline-Ansicht">Timeline</button>
+    </div>
     <span class="grow"></span>
-    <button id="add">+ Neu <kbd>Ctrl Enter</kbd></button>
-    <button id="backup">Backup erstellen</button>
+    <button id="add" class="primary-action">+ Neue Aufgabe <kbd>Ctrl Enter</kbd></button>
+    <details class="app-menu">
+      <summary aria-label="Weitere Aktionen">Mehr</summary>
+      <div class="app-menu-popover">
+        <button data-view="history">Historie</button>
+        <button id="backup">Backup erstellen</button>
+      </div>
+    </details>
     <button id="help" aria-label="Tastaturhilfe">?</button>
   </header>
 
