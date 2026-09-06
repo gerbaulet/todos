@@ -294,3 +294,82 @@ dd { margin: 0; }
 
 :focus-visible { outline: 3px solid #6366f1; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition-duration: 0s !important; } }
+
+@media (max-width: 700px) {
+  body { min-width: 0; overflow: hidden; }
+  .app-header { flex: 0 0 auto; flex-wrap: wrap; gap: 6px; min-height: 108px; padding: 9px 10px; }
+  .brand { margin-right: auto; }
+  .brand h1 { font-size: 17px; }
+  .grow { display: none; }
+  .primary-action { padding-inline: 9px; }
+  .primary-action kbd, #help { display: none; }
+  .section-nav { order: 5; flex: 1 1 auto; height: 38px; overflow-x: auto; }
+  .section-nav button { height: 38px; padding-inline: 8px; }
+  .view-switch { order: 6; flex: 0 0 auto; }
+  .view-switch button { padding-inline: 7px; }
+  .app-menu-popover { position: fixed; top: 58px; right: 10px; }
+
+  #tools { flex-wrap: wrap; align-items: center; gap: 7px; padding: 9px 10px; }
+  #tools .search { flex: 1 1 100%; }
+  #tools .search input { width: 100%; }
+  #tools > label:not(.search) { flex: 1 1 calc(50% - 5px); }
+  #tools > label:not(.search) select { width: 100%; }
+  .task-count { order: 10; margin-left: auto; padding: 0; }
+  .active-filters { min-height: 38px; padding: 5px 10px; overflow-x: auto; }
+  .filter-chip { flex: 0 0 auto; }
+  .filter-popover, #columns { position: fixed; inset: auto 10px 10px; z-index: 50; grid-template-columns: 1fr 1fr; width: auto; max-height: 65dvh; overflow-y: auto; border-radius: 14px; padding: 16px; }
+  #columns { min-width: 0; }
+
+  #tasks { display: block; width: 100% !important; }
+  #tasks colgroup, #tasks thead { display: none; }
+  #tasks tbody { display: grid; gap: 9px; padding: 10px; }
+  #tasks tbody tr { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 3px 8px; border: 1px solid var(--line); border-radius: 11px; padding: 11px; background: #fff; box-shadow: var(--shadow-sm); }
+  #tasks tbody td { display: none; width: auto !important; height: auto !important; border: 0; padding: 0; background: transparent !important; white-space: normal; }
+  #tasks tbody td[data-field="completed"], #tasks tbody td[data-field="title"], #tasks tbody td[data-field="assignee"], #tasks tbody td[data-field="due_date"] { display: block; }
+  #tasks tbody td[data-field="completed"] { grid-row: 1 / 3; grid-column: 1; padding-top: 1px; }
+  #tasks tbody td[data-field="title"] { grid-row: 1; grid-column: 2; min-width: 0; padding-right: 58px; }
+  #tasks tbody td[data-field="due_date"] { grid-row: 1; grid-column: 3; text-align: right; }
+  #tasks tbody td[data-field="assignee"] { grid-row: 2; grid-column: 2 / 4; color: var(--muted); font-size: 12px; }
+  #tasks .row-actions { opacity: 1; background: linear-gradient(90deg, transparent, #fff 22%); }
+  #tasks .empty { display: block; grid-column: 1 / -1; padding: 36px 12px; }
+  .due-badge { white-space: nowrap; }
+
+  .timeline-tools { flex-wrap: wrap; gap: 7px; padding: 8px 10px; overflow: visible; }
+  #timeline-view { display: flex; flex-direction: column; }
+  .timeline-tools > label:first-of-type { display: none; }
+  .timeline-tools .search { order: -1; flex: 1 1 calc(100% - 65px); }
+  .timeline-tools .search input { width: 100%; }
+  .timeline-tools .filter-menu { margin-left: auto; }
+  .timeline-legend { display: none; }
+  #timeline { flex: 1 1 auto; min-height: 0; height: auto; background: var(--bg); }
+  .timeline-list { display: grid; gap: 9px; padding: 10px; }
+  .timeline-list > header { display: flex; justify-content: space-between; padding: 5px 3px; color: var(--muted); font-size: 12px; }
+  .timeline-list-item { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; min-height: 64px; padding: 10px 11px; border-color: var(--line); text-align: left; box-shadow: var(--shadow-sm); }
+  .timeline-list-copy { min-width: 0; }
+  .timeline-list-copy strong, .timeline-list-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .timeline-list-copy small { margin-top: 3px; color: var(--muted); }
+  .timeline-list-item.done { opacity: .62; }
+
+  #editor { width: 100vw; height: min(92dvh, 820px); max-height: 92dvh; margin: auto 0 0; border-width: 1px 0 0; border-radius: 16px 16px 0 0; }
+  .editor-header { padding: 18px 16px 14px; }
+  .editor-content { padding: 18px 16px 24px; }
+  .editor-grid { grid-template-columns: 1fr; }
+  .editor-grid .wide { grid-column: auto; }
+  .editor-footer { padding: 13px 16px; }
+  .status-checks { padding-top: 0; }
+  .command-dialog { width: calc(100vw - 20px); padding: 16px; }
+  .syntax-help { max-height: 82px; overflow-y: auto; }
+  #history-view { padding: 16px 12px; }
+  .history-filters { flex-wrap: wrap; }
+  .history-filters label { flex: 1 1 calc(50% - 8px); }
+  .history-item { grid-template-columns: 1fr auto; gap: 3px 8px; }
+  .history-item span:last-child { grid-column: 1 / -1; }
+}
+
+@media (max-width: 430px) {
+  .brand h1 { display: none; }
+  .section-nav button { font-size: 12px; }
+  .view-switch button { font-size: 12px; }
+  .filter-popover { grid-template-columns: 1fr; }
+  #tasks tbody td[data-field="due_date"] { grid-row: 3; grid-column: 2 / 4; text-align: left; }
+}
