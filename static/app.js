@@ -388,6 +388,7 @@ function bind(){
   $$(".reset-filters").forEach(button=>button.onclick=resetFilters);
   $("#columns").onchange=()=>{const visibleColumns=$$("#columns input:checked").map(x=>x.value);saveSettings({visibleColumns});renderTable()};
   $("#density").onchange=e=>{document.body.dataset.density=e.target.value;saveSettings({density:e.target.value})};
+  document.addEventListener("click",e=>$$('#tools details[open]').forEach(menu=>{if(!menu.contains(e.target))menu.open=false}));
   $("#zoom").onchange=e=>{saveSettings({zoom:e.target.value});renderTimeline()};$("#show-deps").onchange=e=>{saveSettings({showDependencies:e.target.checked});renderTimeline()};
   $("#today").onclick=()=>{const px=DAY[state.settings.zoom],x=TIMELINE_LABEL_WIDTH+45*px;$("#timeline").scrollLeft=Math.max(0,x-$("#timeline").clientWidth/3)};$("#timeline").onscroll=()=>{clearTimeout($("#timeline")._timer);$("#timeline")._timer=setTimeout(()=>saveSettings({timelineScroll:$("#timeline").scrollLeft}),500)};
   $("#add").onclick=()=>createTask();$("#backup").onclick=downloadBackup;
