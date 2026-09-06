@@ -248,6 +248,28 @@ dialog h2 { margin: 0 0 16px; }
 dialog footer { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
 #save-edit { border-color: var(--blue); background: var(--blue); color: #fff; }
 #task-history { max-height: 180px; overflow: auto; font-size: 12px; }
+#editor { width: min(620px, 100vw); max-width: none; height: 100dvh; max-height: 100dvh; margin: 0 0 0 auto; border-width: 0 0 0 1px; border-radius: 16px 0 0 16px; padding: 0; }
+#edit-form { display: flex; flex-direction: column; height: 100%; }
+.editor-header { display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto; padding: 22px 24px 18px; border-bottom: 1px solid var(--line); }
+.editor-header h2 { margin: 2px 0 0; font-size: 22px; }
+.eyebrow { color: var(--blue); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.icon-button { display: grid; place-items: center; width: 36px; min-height: 36px; border: 0; border-radius: 50%; padding: 0; color: var(--muted); font-size: 24px; }
+.editor-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 22px 24px 30px; }
+.editor-section + .editor-section { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--line); }
+.editor-section h3 { margin: 0 0 12px; color: #344054; font-size: 13px; }
+.editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.editor-grid .wide { grid-column: 1 / -1; }
+.editor-grid label small { color: var(--muted); font-size: 10px; font-weight: 400; }
+.editor-section textarea { width: 100%; min-height: 150px; resize: vertical; }
+.status-checks { display: flex; align-items: center; gap: 18px; padding-top: 19px; }
+.status-checks .check { flex-direction: row; align-items: center; color: #344054; font-size: 13px; }
+.status-checks input { min-height: auto; }
+.editor-disclosure { margin-top: 22px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+.editor-disclosure > summary { padding: 11px 13px; color: #344054; font-weight: 650; }
+.editor-disclosure[open] > summary { border-bottom: 1px solid var(--line); }
+.editor-disclosure > .editor-grid, .editor-disclosure > #task-history { padding: 14px; }
+.editor-footer { display: flex; justify-content: flex-end; gap: 9px; flex: 0 0 auto; margin: 0; padding: 16px 24px; border-top: 1px solid var(--line); background: var(--surface-muted); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 dl { display: grid; grid-template-columns: 160px 1fr; gap: 7px; }
 dt { font-weight: 650; }
 dd { margin: 0; }
