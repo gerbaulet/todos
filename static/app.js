@@ -7,7 +7,7 @@ const columns=[
 ];
 const optional=["project","category","tags","notes","link"];
 const filterControls={search:["search","tl-search"],status:["status","tl-status"],type:["f-type","tl-type"],assignee:["f-assignee","tl-assignee"],project:["f-project","tl-project"],category:["f-category","tl-category"],tag:["f-tag","tl-tag"],due:["f-due"]};
-const defaults={view:"table",sort:{field:"due_date",dir:1},visibleColumns:["notes"],columnWidths:{},filters:{status:"active"},zoom:"month",showDependencies:false,timelineScroll:0,recentCommands:[]};
+const defaults={view:"table",sort:{field:"due_date",dir:1},visibleColumns:["notes"],columnWidths:{},filters:{status:"active"},zoom:"month",showDependencies:false,timelineScroll:0,recentCommands:[],density:"compact"};
 const defaultColumnWidths={id:55,title:420,assignee:150,due_date:210,notes:260,completed:82,dependencies:180,project:160,category:150,tags:170,link:220};
 const state={tasks:[],lookups:{assignees:[],projects:[],categories:[],tags:[]},settings:{...defaults},selected:null,editing:null,saveTimer:null,pendingSettings:{},overlay:null,overlayReturnFocus:null,quickIndex:0,paletteIndex:0,paletteItems:[]};
 
@@ -121,7 +121,7 @@ function fillLookups(){
 function applySettings(){
   const s=state.settings,f=s.filters||{};
   for(const [key,ids] of Object.entries(filterControls))for(const id of ids)$("#"+id).value=f[key]||(key==="status"?"active":"");
-  $$("#columns input").forEach(x=>x.checked=(s.visibleColumns||[]).includes(x.value));$("#zoom").value=s.zoom;$("#show-deps").checked=!!s.showDependencies;
+  $$("#columns input").forEach(x=>x.checked=(s.visibleColumns||[]).includes(x.value));$("#zoom").value=s.zoom;$("#show-deps").checked=!!s.showDependencies;$("#density").value=s.density||"compact";document.body.dataset.density=s.density||"compact";
 }
 function esc(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function activeColumns(){return columns.filter(c=>!optional.includes(c[0])||(state.settings.visibleColumns||[]).includes(c[0]))}
@@ -183,15 +183,17 @@ function recommendationLabel(d){if(!d.recommended_start)return "";return d.recom
 function dueDetails(t){const recommendations=t.dependencies.filter(d=>d.recommended_start);return [t.due_display&&`Eigener Termin: ${t.due_display}`,...recommendations.map(d=>`Abhängigkeit ${depLabel(d)}: ${recommendationLabel(d)}`)].filter(Boolean).join("\n")}
 function renderTable(){
   const cols=activeColumns(),data=filteredTasks(),head=$("#tasks thead tr"),body=$("#tasks tbody");
+  $("#task-count").textContent=`${data.length} ${data.length===1?"Aufgabe":"Aufgaben"}`;
   $("#tasks colgroup").innerHTML=cols.map(c=>`<col data-field="${c[0]}" style="width:${columnWidth(c[0])}px">`).join("")+(state.settings.view==="trash"?'<col style="width:140px">':"");
   applyTableWidth(cols);
   head.innerHTML=cols.map(c=>`<th data-field="${c[0]}" style="width:${columnWidth(c[0])}px!important">${c[1]}${state.settings.sort.field===c[0]?(state.settings.sort.dir>0?" ▲":" ▼"):""}<span class="column-resizer" data-resize="${c[0]}" role="separator" aria-orientation="vertical" aria-label="Spalte ${c[1]} in der Breite ändern" tabindex="0"></span></th>`).join("")+(state.settings.view==="trash"?"<th>Aktion</th>":"");
   body.innerHTML=data.map(t=>`<tr data-id="${t.id}" class="${t.completed?"completed-row":""}">${cols.map(c=>{
     const color=c[0]==="assignee"?(state.lookups.assignees.find(a=>a.name===t.assignee)?.color):null;
     const due=c[0]==="due_date",recommendations=due?t.dependencies.filter(d=>d.recommended_start):[],warning=recommendations.some(d=>d.deviates);
-    const title=c[0]==="title",notes=c[0]==="notes";
-    const content=due?`${t.due_display?`<span>${esc(t.due_display)}</span>`:""}${recommendations.length?`<small class="recommendation ${warning?"deviation":""}">${warning?"⚠ ":""}${esc(recommendations.map(recommendationLabel).join(", "))}</small>`:""}`:notes?`<span class="notes-preview">${esc(t.notes)}</span>`:`${title&&t.is_milestone?'<span class="milestone-symbol" aria-label="Meilenstein">◆</span> ':""}${color?`<span class="color-dot" style="background:${color}"></span>`:""}${esc(display(t,c[0]))}`;
-    return `<td tabindex="${c[2]?0:-1}" data-field="${c[0]}" title="${esc(due?dueDetails(t):display(t,c[0]))}" class="${due&&!t.completed&&t.due_end&&t.due_end<localDate()?"overdue":""}">${content}</td>`}).join("")}${state.settings.view==="trash"?`<td><button class="restore" data-restore="${t.id}">Wiederherstellen</button></td>`:""}</tr>`).join("")||'<tr><td class="empty" colspan="10">Keine Aufgaben in dieser Ansicht.</td></tr>';
+    const title=c[0]==="title",notes=c[0]==="notes",tags=c[0]==="tags",completed=c[0]==="completed",isOverdue=due&&!t.completed&&t.due_end&&t.due_end<localDate();
+    const actions=title&&state.settings.view!=="trash"?`<span class="row-actions"><button type="button" data-edit-task="${t.id}" aria-label="Aufgabe bearbeiten" title="Bearbeiten">✎</button><button type="button" data-delete-task="${t.id}" aria-label="Aufgabe in den Papierkorb verschieben" title="Löschen">⌫</button></span>`:"";
+    const content=completed?`<button type="button" class="task-checkbox" data-toggle-task="${t.id}" role="checkbox" aria-checked="${t.completed}" aria-label="${t.completed?"Aufgabe wieder öffnen":"Aufgabe erledigen"}"><span aria-hidden="true">${t.completed?"✓":""}</span></button>`:due?`${t.due_display?`<span class="due-badge due-${t.due_type||"none"} ${isOverdue?"due-overdue":""}">${isOverdue?'<b aria-hidden="true">!</b> ':""}${esc(t.due_display)}</span>`:""}${recommendations.length?`<small class="recommendation ${warning?"deviation":""}">${warning?"⚠ ":""}${esc(recommendations.map(recommendationLabel).join(", "))}</small>`:""}`:tags?t.tags.map(tag=>`<span class="tag-chip">${esc(tag)}</span>`).join(""):notes?`<span class="notes-preview">${esc(t.notes)}</span>`:`${title?'<span class="task-title">':""}${title&&t.is_milestone?'<span class="milestone-symbol" aria-label="Meilenstein">◆</span> ':""}${color?`<span class="color-dot" style="background:${color}"></span>`:""}${esc(display(t,c[0]))}${title?"</span>":""}${actions}`;
+    return `<td tabindex="${c[2]?0:-1}" data-field="${c[0]}" title="${esc(due?dueDetails(t):display(t,c[0]))}" class="${isOverdue?"overdue ":""}${title?"task-title-cell":""}">${content}</td>`}).join("")}${state.settings.view==="trash"?`<td><button class="restore" data-restore="${t.id}">Wiederherstellen</button></td>`:""}</tr>`).join("")||`<tr><td class="empty" colspan="${cols.length+(state.settings.view==="trash"?1:0)}"><span class="empty-icon" aria-hidden="true">✓</span><strong>Keine Aufgaben in dieser Ansicht</strong><small>Neue Aufgaben erscheinen hier, sobald sie zu den gewählten Filtern passen.</small></td></tr>`;
   if(state.selected){const cell=$(`tr[data-id="${state.selected.id}"] td[data-field="${state.selected.field}"]`);if(cell)cell.classList.add("cell-selected")}
 }
 async function updateTask(id,change){
@@ -233,7 +235,8 @@ function onTableKey(ev){
   else if(ev.key.length===1&&!ev.ctrlKey&&!ev.metaKey&&!ev.altKey&&cell?.tabIndex===0&&state.selected.field!=="completed"){editCell(cell);if(state.editing){state.editing.input.value+=ev.key;state.editing.input.setSelectionRange(state.editing.input.value.length,state.editing.input.value.length);ev.preventDefault()}}
 }
 function toggleCurrent(){if(!state.selected)return;const t=state.tasks.find(x=>x.id===state.selected.id);if(t)updateTask(t.id,{completed:!t.completed})}
-async function deleteCurrent(){if(!state.selected)return;try{replaceTask(await api(`/api/tasks/${state.selected.id}`,{method:"DELETE"}));state.selected=null;render();toast("In den Papierkorb verschoben")}catch(e){toast(e.message,true)}}
+async function deleteTask(id){try{replaceTask(await api(`/api/tasks/${id}`,{method:"DELETE"}));if(state.selected?.id===id)state.selected=null;render();toast("In den Papierkorb verschoben")}catch(e){toast(e.message,true)}}
+async function deleteCurrent(){if(state.selected)return deleteTask(state.selected.id)}
 async function restoreTask(id){try{replaceTask(await api(`/api/tasks/${id}/restore`,{method:"POST"}));render();toast("Task wiederhergestellt")}catch(e){toast(e.message,true)}}
 
 async function openEditor(id){
@@ -369,7 +372,7 @@ function executePaletteItem(){
 }
 
 function bind(){
-  $("#tasks").addEventListener("click",e=>{const restore=e.target.closest("[data-restore]");if(restore)return restoreTask(+restore.dataset.restore);const cell=e.target.closest("td");if(cell?.dataset.field){let cursor=null;if(cell.dataset.field==="notes"&&e.detail===2){const caret=document.caretPositionFromPoint?.(e.clientX,e.clientY);if(caret&&cell.contains(caret.offsetNode))cursor=caret.offset}selectCell(cell);if(e.detail===2){if(cell.dataset.field==="id")openEditor(+cell.closest("tr").dataset.id);else editCell(cell,cursor)}}});$("#tasks").addEventListener("keydown",onTableKey);
+  $("#tasks").addEventListener("click",e=>{const restore=e.target.closest("[data-restore]"),toggle=e.target.closest("[data-toggle-task]"),edit=e.target.closest("[data-edit-task]"),remove=e.target.closest("[data-delete-task]");if(restore)return restoreTask(+restore.dataset.restore);if(toggle){state.selected={id:+toggle.dataset.toggleTask,field:"completed"};return toggleCurrent()}if(edit)return openEditor(+edit.dataset.editTask);if(remove)return deleteTask(+remove.dataset.deleteTask);const cell=e.target.closest("td");if(cell?.dataset.field){let cursor=null;if(cell.dataset.field==="notes"&&e.detail===2){const caret=document.caretPositionFromPoint?.(e.clientX,e.clientY);if(caret&&cell.contains(caret.offsetNode))cursor=caret.offset}selectCell(cell);if(e.detail===2){if(cell.dataset.field==="id")openEditor(+cell.closest("tr").dataset.id);else editCell(cell,cursor)}}});$("#tasks").addEventListener("keydown",onTableKey);
   $("#tasks thead").onclick=e=>{if(e.target.closest(".column-resizer"))return;const f=e.target.closest("th")?.dataset.field;if(!f)return;const old=state.settings.sort||defaults.sort;saveSettings({sort:{field:f,dir:old.field===f?-old.dir:1}});renderTable()};
   $("#tasks thead").addEventListener("pointerdown",e=>{const handle=e.target.closest(".column-resizer");if(handle)startColumnResize(e,handle)});
   $("#tasks thead").addEventListener("keydown",e=>{const handle=e.target.closest(".column-resizer");if(handle&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){e.preventDefault();e.stopPropagation();setColumnWidth(handle.dataset.resize,columnWidth(handle.dataset.resize)+(e.key==="ArrowRight"?10:-10),true)}});
@@ -378,6 +381,7 @@ function bind(){
   $("#active-filters").onclick=e=>{const key=e.target.closest("[data-clear-filter]")?.dataset.clearFilter;if(!key)return;const filters={...state.settings.filters,[key]:key==="status"?"active":""};saveSettings({filters});applySettings();render()};
   $$(".reset-filters").forEach(button=>button.onclick=resetFilters);
   $("#columns").onchange=()=>{const visibleColumns=$$("#columns input:checked").map(x=>x.value);saveSettings({visibleColumns});renderTable()};
+  $("#density").onchange=e=>{document.body.dataset.density=e.target.value;saveSettings({density:e.target.value})};
   $("#zoom").onchange=e=>{saveSettings({zoom:e.target.value});renderTimeline()};$("#show-deps").onchange=e=>{saveSettings({showDependencies:e.target.checked});renderTimeline()};
   $("#today").onclick=()=>{const px=DAY[state.settings.zoom],x=TIMELINE_LABEL_WIDTH+45*px;$("#timeline").scrollLeft=Math.max(0,x-$("#timeline").clientWidth/3)};$("#timeline").onscroll=()=>{clearTimeout($("#timeline")._timer);$("#timeline")._timer=setTimeout(()=>saveSettings({timelineScroll:$("#timeline").scrollLeft}),500)};
   $("#add").onclick=()=>createTask();$("#backup").onclick=downloadBackup;
