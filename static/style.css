@@ -168,12 +168,22 @@ td textarea { display: block; width: 100%; min-height: 76px; margin: -4px -6px; 
 .timeline-tools label { flex-direction: row; align-items: center; font-size: 12px; white-space: nowrap; }
 .timeline-tools .search input { width: 220px; }
 .timeline-tools .toggle { white-space: nowrap; }
+.timeline-legend { margin-left: auto; }
+.timeline-legend > summary { color: var(--muted); white-space: nowrap; }
+.timeline-legend > div { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; display: grid; gap: 9px; min-width: 170px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; box-shadow: var(--shadow-lg); }
+.timeline-legend span { display: flex; align-items: center; gap: 9px; white-space: nowrap; }
+.timeline-legend i { display: inline-block; flex: 0 0 auto; }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; background: #64748b; }
+.legend-range { width: 25px; height: 10px; border: 1px solid #64748b; border-radius: 4px; background: #f2f4f7; }
+.legend-milestone { width: 9px; height: 9px; background: #64748b; transform: rotate(45deg); }
+.legend-recommended { width: 25px; border-top: 2px dashed #98a2b3; }
 #timeline { position: relative; height: calc(100% - 54px); overflow: auto; background: var(--surface); }
 .tl-canvas { position: relative; min-height: 100%; }
 .tl-months { position: sticky; top: 0; z-index: 3; height: 36px; border-bottom: 1px solid var(--line-strong); background: #f2f4f7; }
 .tl-month { position: absolute; height: 36px; border-left: 1px solid #b8c1cc; padding: 8px; color: #344054; font-weight: 650; }
-.tl-row { position: relative; height: 62px; border-bottom: 1px solid var(--line); }
-.tl-label { position: sticky; left: 0; z-index: 2; display: flex !important; align-items: center; width: 140px; height: 100%; padding: 8px !important; border-right: 1px solid var(--line-strong); background: var(--surface-muted); }
+.tl-row { position: relative; height: 62px; border-bottom: 1px solid var(--line); background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(var(--week-width) - 1px), #eef1f5 calc(var(--week-width) - 1px), #eef1f5 var(--week-width)); background-position-x: var(--label-width); }
+.tl-label { position: sticky; left: 0; z-index: 3; display: flex !important; align-items: center; gap: 9px; width: var(--label-width); height: 100%; padding: 8px 12px !important; border-right: 1px solid var(--line-strong); background: var(--surface-muted); font-weight: 600; }
+.assignee-avatar { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border: 1px solid color-mix(in srgb, var(--color) 45%, white); border-radius: 8px; background: color-mix(in srgb, var(--color) 14%, white); color: var(--color); font-size: 10px; font-weight: 800; }
 .tl-marker { position: absolute; top: 10px; z-index: 2; max-width: none !important; overflow: hidden; border: 1px solid var(--color, #667085) !important; border-radius: 8px !important; padding: 4px 3px !important; background: #f2f4f7 !important; text-align: left !important; text-overflow: ellipsis; white-space: nowrap; cursor: grab; opacity: .84; }
 .tl-marker:focus { outline: 3px solid #6366f1; }
 .tl-marker.done { filter: grayscale(1); opacity: .52; }
@@ -182,11 +192,16 @@ td textarea { display: block; width: 100%; min-height: 76px; margin: -4px -6px; 
 .tl-marker.precision-exact::before { content: ""; position: absolute; top: 9px; left: 1px; width: 7px; height: 7px; border-radius: 50%; background: var(--color, #475467); }
 .tl-marker.milestone-marker { border-width: 2px !important; box-shadow: inset 0 0 0 1px #fff; }
 .tl-marker.milestone-marker.precision-exact::before { top: 8px; width: 8px; height: 8px; border-radius: 0; transform: rotate(45deg); }
+.marker-title { display: inline-block; max-width: 210px; overflow: hidden; vertical-align: bottom; text-overflow: ellipsis; }
+.marker-alert { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-right: 4px; border-radius: 50%; background: #fee4e2; color: #b42318; font-size: 10px; font-weight: 800; }
 .today-line { position: absolute; top: 36px; bottom: 0; z-index: 1; border-left: 2px solid #e11d48; }
+.today-line span { position: sticky; top: 4px; display: inline-block; margin: 5px 0 0 5px; border-radius: 4px; padding: 2px 5px; background: #fff1f3; color: #c01048; font-size: 10px; font-weight: 700; }
 .dep-lines { position: absolute; top: 36px; left: 0; z-index: 1; pointer-events: none; }
-.undated { padding: 12px 12px 24px 150px; border-top: 2px solid #98a2b3; }
-.undated strong { position: absolute; left: 10px; }
-.undated button { margin: 2px; }
+.undated { display: grid; grid-template-columns: var(--label-width) 1fr; min-height: 66px; border-top: 1px solid var(--line-strong); background: var(--surface-muted); }
+.undated strong { position: sticky; left: 0; z-index: 2; padding: 16px 12px; border-right: 1px solid var(--line-strong); background: var(--surface-muted); }
+.undated-list { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px; padding: 11px; }
+.undated button { margin: 0; }
+.muted { color: var(--muted); }
 .undated-task small { display: block; color: var(--muted); font-size: 10px; }
 .tl-canvas.zoom-year .tl-months, .tl-canvas.zoom-year .tl-month { height: 48px; }
 .tl-canvas.zoom-year .tl-month { overflow: hidden; line-height: 17px; }
