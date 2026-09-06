@@ -144,6 +144,7 @@ th { position: sticky; top: 0; z-index: 2; border-bottom: 1px solid var(--line-s
 th, td { height: 34px; padding: 6px 9px; border-right: 1px solid #eaecf0; border-bottom: 1px solid #eaecf0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 tbody tr { transition: background-color .12s; }
 tbody tr:hover td { background: #f8faff; }
+body[data-density="dense"] th, body[data-density="dense"] td { height: 28px; padding: 2px 7px; }
 body[data-density="comfortable"] th, body[data-density="comfortable"] td { height: 46px; padding-top: 10px; padding-bottom: 10px; }
 th[data-field=id], td[data-field=id] { width: 55px; text-align: right; color: #7b8494; }
 th[data-field=title] { width: 35%; }
@@ -156,6 +157,9 @@ th[data-field=notes] { width: 260px; }
 td[data-field=notes] { max-height: 45px; white-space: normal; line-height: 1.25; }
 .notes-preview { display: -webkit-box; overflow: hidden; white-space: pre-wrap; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .recommendation { display: block; overflow: hidden; color: var(--muted); font-size: 10px; font-weight: 400; text-overflow: ellipsis; }
+body[data-density="dense"] td[data-field=due_date]:has(.recommendation) { height: 34px; }
+body[data-density="dense"] .notes-preview { white-space: nowrap; -webkit-line-clamp: 1; }
+body[data-density="dense"] .recommendation { font-size: 9px; line-height: 1.05; }
 .recommendation.deviation { color: #9a5b13; }
 .completed-row { background: #f8fafc; color: #7b8494; }
 .completed-row .task-title { text-decoration: line-through; text-decoration-color: #98a2b3; }
@@ -171,6 +175,9 @@ tr:hover .row-actions, .row-actions:focus-within { opacity: 1; }
 .task-checkbox { display: inline-grid; place-items: center; width: 20px; min-height: 20px; border: 1.5px solid #98a2b3; border-radius: 6px; padding: 0; background: #fff; color: #fff; font-size: 13px; font-weight: 800; }
 .task-checkbox[aria-checked="true"] { border-color: var(--blue); background: var(--blue); }
 .due-badge { display: inline-flex; align-items: center; min-height: 23px; border-radius: 6px; padding: 2px 7px; background: #f2f4f7; color: #475467; font-size: 12px; font-weight: 600; }
+body[data-density="dense"] .row-actions button { width: 22px; min-height: 22px; }
+body[data-density="dense"] .task-checkbox { width: 18px; min-height: 18px; border-radius: 5px; font-size: 11px; }
+body[data-density="dense"] .due-badge { min-height: 19px; padding: 1px 5px; font-size: 11px; }
 .due-exact { background: #eef2ff; color: #3730a3; }
 .due-overdue { background: #fef3f2; color: #b42318; }
 .due-badge b { display: inline-grid; place-items: center; width: 14px; height: 14px; margin-right: 4px; border-radius: 50%; background: #fecdca; font-size: 9px; }
