@@ -77,7 +77,7 @@ class ApiTests(unittest.TestCase):
 
     def test_healthcheck_does_not_load_tasks(self):
         with patch.object(app.DB, "list_tasks", side_effect=AssertionError("tasks loaded")):
-            self.assertEqual(self.request("GET", "/healthz"), {"ok": True})
+            self.assertEqual(self.request("GET", "/health"), {"ok": True})
 
 
 if __name__ == "__main__":

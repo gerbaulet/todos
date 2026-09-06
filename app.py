@@ -45,7 +45,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             path = self.route()
-            if path == "/healthz": return self.json(200, {"ok": True})
+            if path == "/health": return self.json(200, {"ok": True})
             if path == "/api/tasks": return self.json(200, DB.list_tasks())
             if path == "/api/history": return self.json(200, DB.history())
             if path == "/api/lookups": return self.json(200, DB.lookups())
